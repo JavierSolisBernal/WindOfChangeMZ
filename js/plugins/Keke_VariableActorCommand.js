@@ -19,7 +19,7 @@
  *
  * ● 特徴 ●
  * ■キャラごとにコマンド自由構成
- * ■コマンド数に応じたウインドウ自動伸縮
+ * ■コマンド数に応じたAutoStretching
  * ■コマンドの動的変更
  *
  *
@@ -29,7 +29,7 @@
  * ■コマンドを追加(削除)
  * アクター、職業、装備、スキル、アイテム、ステートのメモ欄に
  *
- * <コマンド: (-)(コマンド)(/)(タイプ/ID), (表示順), (表示名), (アイコンID),
+ * <コマンド: (-)(コマンド)(/)(タイプ/ID), (表示順), (表示名), (IconID),
  *   (ヘルプ)>
  *
  * ★(-)(コマンド)
@@ -65,28 +65,28 @@
  * コマンドの実際に表示される名前。省略可能
  * 省略した場合、コマンド本来の名前がそのまま表示される
  *
- * ★(アイコンID)
- * 表示するアイコンのID。省略可能
- * 省略すると基本的にはアイコンを表示しないが、
- * スキル個別のときのみ、そのスキル本来のアイコンを表示する
+ * ★(IconID)
+ * 表示するIconのID。省略可能
+ * 省略すると基本的にはIconを表示しないが、
+ * スキル個別のときのみ、そのスキル本来のIconを表示する
  * 
  * ★(ヘルプ)
  * 表示するヘルプメッセージ。省略可能
- * プラグインパラメータ → ヘルプ登録　でヘルプを登録し、
- * そのヘルプ名を書く
+ * プラグインパラメータ → RegisterHelp　でヘルプを登録し、
+ * そのHelp Nameを書く
  *
- * ※コマンド追加がひとつでもある時点で、デフォのコマンドは無効化される
+ * ※コマンド追加がひとつでもある時点で、デフォのコマンドはinvalid化される
  *
  * ●具体例
  * ◎このようなコマンド構成にする場合
  * 　ブラッドスティア(スキルID162)
- * 　魔剣技(スキルタイプ『攻撃特技』, アイコンID 76)
- * 　破壊魔法(スキルタイプ『攻撃魔法』, アイコンID 79)
- * 　聖魔法(スキルタイプ『回復魔法』, アイコンID 72)
+ * 　魔剣技(スキルタイプ『攻撃特技』, IconID 76)
+ * 　破壊魔法(スキルタイプ『攻撃魔法』, IconID 79)
+ * 　聖魔法(スキルタイプ『回復魔法』, IconID 72)
  * 　ハイガード(防御コマンド)
- * 　アイテム(アイテムコマンド, アイコンID 165)
- * 　逃げる(逃げるコマンド, アイコンID 82)
- * 　オート(自動コマンド, アイコンID 83)
+ * 　アイテム(アイテムコマンド, IconID 165)
+ * 　逃げる(逃げるコマンド, IconID 82)
+ * 　オート(自動コマンド, IconID 83)
  *
  * 　<コマンド:スキル/162,10>
  * 　<コマンド:スキル/攻撃特技,20,魔剣技,76>
@@ -209,100 +209,100 @@
  * 
  * 
  * 
- * @param ウインドウ
+ * @param Window
  *
- * @param ウインドウ自動伸縮
- * @parent ウインドウ
- * @desc ウインドウをコマンド数に応じて自動伸縮させる
+ * @param AutoStretching
+ * @parent Window
+ * @desc Automatically expand and contract the window according to the number of commands
  * @type boolean
  * @default true
  *
- * @param ウインドウ伸縮下端
- * @parent ウインドウ
- * @desc この座標より下には伸びず上に伸びていく
+ * @param BottomEdge
+ * @parent Window
+ * @desc It does not extend below this coordinate and extends above it.
  * @default 616
  *
- * @param ウインドウ不透明度
- * @parent ウインドウ
- * @desc ウインドウの不透明度(0〜255)
+ * @param WindowOpacity
+ * @parent Window
+ * @desc Window opacity (0 to 255)
  * @default 255
  *
- * @param アイコン
+ * @param Icon
  *
- * @param アイコン表示
- * @parent アイコン
- * @desc アイコンを表示する
+ * @param IconView
+ * @parent Icon
+ * @desc Show Icons
  * @type boolean
  * @default true
  *
- * @param アイコンサイズ
- * @parent アイコン
- * @desc アイコンの大きさ(ピクセル)
+ * @param IconSize
+ * @parent Icon
+ * @desc Icon size (pixels)
  * @default 32
  *
- * @param アイコンX位置
- * @parent アイコン
- * @desc アイコンのX位置(ピクセル)
+ * @param IconXpos
+ * @parent Icon
+ * @desc Icon X position (pixels)
  * @default -4
  *
- * @param アイコンY位置
- * @parent アイコン
- * @desc アイコンのY位置(ピクセル)
+ * @param IconYpos
+ * @parent Icon
+ * @desc Icon Y position (pixels)
  * @default 0
  *
- * @param アイコン配置
- * @parent アイコン
- * @desc アイコンをウインドウ左に配置するか右に配置する
+ * @param IconPlacement
+ * @parent Icon
+ * @desc Align icons to the left or right of the window
  * @type select
- * @option 左
- * @option 右
- * @default 左
+ * @option Left
+ * @option Right
+ * @default Left
  *
  *
- * @param タッチボタン
+ * @param TouchButton
  *
- * @param キャンセルボタン自動移動
- * @parent タッチボタン
- * @desc 自動的にキャンセルボタンをコマンド上方に移動する
+ * @param CancelButtonAuto
+ * @parent TouchButton
+ * @desc Automatically move the cancel button above the command
  * @type select
- * @option 上に配置
- * @option 左上に配置
- * @option 右上に配置
- * @option 無効
- * @default 上に配置
+ * @option Top
+ * @option TopLeft
+ * @option TopRight
+ * @option invalid
+ * @default Top
  *
  * @param ヘルプ
  * 
- * @param ヘルプ登録
+ * @param RegisterHelp
  * @parent ヘルプ
- * @desc ヘルプメッセージを登録する。メモ欄からヘルプ名を書くことで呼び出せる
+ * @desc Register a help message. You can call it by writing the Help Name in the memo field.
  * @type struct<help>[]
  * @default []
  * 
- * @param スキルヘルプ表示
+ * @param SkillHelpDisplay
  * @parent ヘルプ
- * @desc アクターコマンドでもスキルのヘルプを表示する
+ * @desc Display skill help with actor commands
  * @type boolean
  * @default true
  * 
- * @param その他
+ * @param others
  *
- * @param パーティコマンド無効
- * @parent その他
- * @desc パーティコマンドを表示しなくする
+ * @param PartyCommandDisabled
+ * @parent others
+ * @desc Hide party commands
  * @type boolean
  * @default false
  * 
- * @param コマンドにスキルを参照
- * @parent その他
- * @desc コマンド構成に所持スキルのメモ欄も参照する
+ * @param SkillCommand
+ * @parent others
+ * @desc Also refer to the memo field of skills possessed when configuring commands
  * @type boolean
  * @default false
  * 
- * @param 用語・自動戦闘
- * @parent その他
- * @desc 自動戦闘の呼び方
- * @default オート
+ * @param NombreAutoBattle
+ * @parent others
+ * @desc How to call auto-battle
+ * @default Auto
  */
  
  
@@ -311,17 +311,17 @@
 /*~struct~help:
 //==================================================
 /*
- * @param ヘルプ名
+ * @param Help Name
  * @desc ヘルプの名前。メモ欄からの呼び出しに使う
  * @default 
  * 
  * @param テキスト
- * @desc ヘルプのテキスト内容
+ * @desc Help text content
  * @type multiline_string
  * @default 
  * 
- * @param アイコン
- * @desc 表示するアイコン
+ * @param Icon
+ * @desc 表示するIcon
  * @type icon
  * @default 
  */
@@ -329,16 +329,16 @@
 
 
 (() => {
-    //- プラグイン名
+    //- Plugin name
     const pluginName = document.currentScript.src.match(/^.*\/(.*).js$/)[1];
     
     
     
     //==================================================
-    //--  スプライト追加 /ベーシック
+    //--  Add Sprite /Basic
     //==================================================
     
-    //- 破棄付きスプライト
+    //- Sprite with Discard
     function SpriteKeVrac() {
         this.initialize(...arguments);
     }
@@ -354,10 +354,10 @@
 
 
     //==================================================
-    //--  パラメータ受け取り
+    //--  Parameter reception
     //==================================================
     
-    //- 真偽化
+    //- Authenticity
     function toBoolean(str) {
         if (!str) { return false; }
         const str2 = str.toString().toLowerCase();
@@ -368,39 +368,39 @@
 
     let parameters = PluginManager.parameters(pluginName);
     
-    //- ウインドウ
-    const keke_windowAutoResize = toBoolean(parameters["ウインドウ自動伸縮"]);
-    const keke_windowResizeMax = Number(parameters["ウインドウ伸縮下端"]);
-    const keke_windowOpacity = Number(parameters["ウインドウ不透明度"]);
+    //- Window
+    const keke_windowAutoResize = toBoolean(parameters["AutoStretching"]);
+    const keke_windowResizeMax = Number(parameters["BottomEdge"]);
+    const keke_windowOpacity = Number(parameters["WindowOpacity"]);
     
-    //- アイコン
-    const keke_iconShow = toBoolean(parameters["アイコン表示"]);
-    const keke_iconSize = Number(parameters["アイコンサイズ"]);
-    const keke_iconPosX = Number(parameters["アイコンX位置"]);
-    const keke_iconPosY = Number(parameters["アイコンY位置"]);
-    const keke_iconRel = parameters["アイコン配置"];
+    //- Icon
+    const keke_iconShow = toBoolean(parameters["IconView"]);
+    const keke_iconSize = Number(parameters["IconSize"]);
+    const keke_iconPosX = Number(parameters["IconXpos"]);
+    const keke_iconPosY = Number(parameters["IconYpos"]);
+    const keke_iconRel = parameters["IconPlacement"];
     
-    //- タッチボタン
-    const keke_cancelAutoRepos = parameters["キャンセルボタン自動移動"];
+    //- Touch button
+    const keke_cancelAutoRepos = parameters["CancelButtonAuto"];
 
-    //- ヘルプ
-    const keke_helpList = parameters["ヘルプ登録"] ? JSON.parse(parameters["ヘルプ登録"]).map(d => JSON.parse(d)) : [];
-    const keke_showSkillHelp = toBoolean(parameters["スキルヘルプ表示"]);
+    //- help
+    const keke_helpList = parameters["RegisterHelp"] ? JSON.parse(parameters["RegisterHelp"]).map(d => JSON.parse(d)) : [];
+    const keke_showSkillHelp = toBoolean(parameters["SkillHelpDisplay"]);
     
-    //- その他
-    const keke_noPartyCommand = toBoolean(parameters["パーティコマンド無効"]);
-    const keke_commandReferSkill = toBoolean(parameters["コマンドにスキルを参照"]);
-    const keke_autoBattleWord = parameters["用語・自動戦闘"];
+    //- others
+    const keke_noPartyCommand = toBoolean(parameters["PartyCommandDisabled"]);
+    const keke_commandReferSkill = toBoolean(parameters["SkillCommand"]);
+    const keke_autoBattleWord = parameters["NombreAutoBattle"];
 
     parameters = null;
     
     
     
     //==================================================
-    //--  共通開始
+    //--  common start
     //==================================================
     
-    //- ウインドウ・アクターコマンド/開始(処理追加)
+    //- Window Actor Command/Start (Add Process)
     const _Window_ActorCommand_initialize = Window_ActorCommand.prototype.initialize;
     Window_ActorCommand.prototype.initialize = function(rect) {
         _Window_ActorCommand_initialize.apply(this, arguments);
@@ -410,19 +410,19 @@
     
     
     //==================================================
-    //--  共通更新
+    //--  Common update
     //==================================================
     
-    //- シーンバトル/更新(処理追加)
+    //- Scene Battle/Update (processing added)
     const _Scene_Battle_update = Scene_Battle.prototype.update;
     Scene_Battle.prototype.update = function() {
         _Scene_Battle_update.apply(this);
-        // 自動戦闘の更新
+        // Auto Battle Update
         updateAutoBattle(this);
     };
 
 
-    //- ウインドウ・アクターコマンド/更新(処理追加)
+    //Window Actor Command/Update (Add Process)
     if (Window_ActorCommand.prototype.update == Window_Selectable.prototype.update) {
         Window_ActorCommand.prototype.update = function() {
             Window_Selectable.prototype.update.call(this);
@@ -432,56 +432,56 @@
     Window_ActorCommand.prototype.update = function() {
         _Window_ActorCommand_update.apply(this, arguments);
 
-        // 使用可能の更新
+        // Available Updates
         updateCan(this);
     };
     
     
     //==================================================
-    //--  共通処理
+    //--  overhead processing
     //==================================================
     
-    //- コマンドリストの作成(処理追加)
+    //- Creating a command list (adding processing)
     const _Window_ActorCommand_makeCommandList = Window_ActorCommand.prototype.makeCommandList;
     Window_ActorCommand.prototype.makeCommandList = function() {
         // 独自コマンドリストの作成
         if (!makeCommandListFree(this)) {
             _Window_ActorCommand_makeCommandList.apply(this);
         }
-        // 不透明度
+        // Opacity
         this.opacity = keke_windowOpacity;
-        // ウインドウのリサイズ
+        //Window resizing
         resizeWindow(this);
-        // キャンセルボタンの再配置
+        // Cancel button relocation
         setTimeout(reposCancelButton, 0, this);
-        // ウインドウのリチルド
+        // Window Re-Child
         rechildWindow(this);
     };
     
     
     
     //==================================================
-    //--  アクターコマンド自由構成
+    //-- Actor command free configuration
     //==================================================
 
-    // アイコン番号
+    // Icon Number
     let iconIndex = 0;
-    // ヘルプテキスト
+    // Help Text
     let helpText = "";
 
-    //- 自由コマンドリストの作成
+    //- Creating a free command list
     function makeCommandListFree(windo) {
         if (!windo._actor) { return 0; }
         let addData = [];
         let delData = [];
         const actor = windo._actor;
-        // コマンドリストのクリア
+        // Clear the command list
         windo.clearCommandList();
-        // アイコンの消去
+        // Removing the icon
         delIcon(windo);
-        // メモ欄からコマンドノート取得
+        // Get command notes from the memo field
         let cmdNotes = bundleAllMeta_array(actor, ["コマンド", "cmd"], null, true);
-        // 多重職業に対応
+        // Supporting multiple occupations
         if (actor._additionalClassIds) {
             actor._additionalClassIds.forEach(classId => {
                 if (!classId) { return; }
@@ -490,7 +490,7 @@
                 cmdNotes = [...cmdNotes, ...metaAll(classObje.note, ["コマンド", "command"]).map(e => e.replace(/\s/g, "")).filter(e => e)];
             });
         }
-        // コマンドデータにセット
+        // Set in command data
         cmdNotes.forEach(note => {
             const data = note.split(",");
             const type = data[0];
@@ -499,7 +499,7 @@
             const iconIndex = data[3] || 0;
             const helpName = data[4] ? data[4].replace(/\s/g, "") : "";
             let del = false;
-            // シンボル取得
+            // Symbol Acquisition
             let symbol = "";
             if (type.includes("攻撃") || type.includes("attack")) { symbol = "attack"; }
             if (type.includes("防御") || type.includes("guard")) { symbol = "guard"; }
@@ -507,25 +507,25 @@
             if (type.includes("アイテム") || type.includes("item")) { symbol = "item"; }
             if (type.includes("逃げる") || type.includes("escape")) { symbol = "escape"; }
             if (type.includes("オート") || type.includes("auto")) { symbol = "auto"; }
-            // シンボルがなければリターン
+            // If no symbol exists, return
             if (!symbol) { return }
-            // スキルタイプ/スキル個別取得
+            // Skill type/individual skill acquisition
             let id = 1;
             if (symbol == "skill") {
                 const tps = type.split("/");
                 if (tps[1]) {
-                    // 数字ならスキル個別
+                    // Numbers are individual skills
                     if (tps[1].match(/\d+/)) {
                         symbol = "skillOne";
                         id = Number(tps[1]);
-                    // 単語ならスキルタイプ
+                    // If it's a word, it's a skill type.
                     } else {
                         id = $dataSystem.skillTypes.indexOf(tps[1]) || 1;
                         if (id < 1 || !existSkillOfSkillType(actor, id)) { return; }
                     }
                 }
             }
-            // アイテム個別取得
+            // Acquire individual items
             if (symbol == "item") {
                 const tps = type.split("/");
                 if (tps[1]) {
@@ -533,31 +533,31 @@
                     id = Number(tps[1]);
                 }
             }
-            // 消去かどうか
+            // Whether to erase
             del = type.startsWith("-") ? true : false;
-            // 消去セット
+            //Elimination Sets
             if (del) {
                 delData.push({ symbol:symbol, id:id });
-            // 追加セット
+            // Additional set
             } else {
                 addData.push({ symbol:symbol, id:id, name:name, order:order, iconIndex:iconIndex, helpName:helpName });
             }
         });
-        // 追加データを順番に応じてソート
+        // Sort additional data according to order
         addData.sort((a, b) => a.order - b.order);
-        // 消去データの分を消去
+        // Erase the data
         addData = addData.filter(add => {
             const dels = delData.filter(del => del.symbol == add.symbol && del.id == add.id);
             return !dels.length;
         });
-        // コマンドの重複を削除
+        // Removed duplicate commands
         addData = delDeplicatedCommand(addData);
-        // 追加データからコマンド内容生成
+        // Generate command content from additional data
         addData.forEach(data => {
             iconIndex = data.iconIndex;
-            // ヘルプテキストの取得
+            // Get help text
             helpText = getHelpText(data);
-            // シンボルからコマンド内容を取得
+            // Get command content from symbol
             switch (data.symbol) {
                 case "attack":
                     windo.addCommand(data.name || TextManager.attack, "attack", actor.canAttack());
@@ -594,15 +594,15 @@
         return addData.length;
     };
 
-    //- そのスキルタイプのスキルがあるか
+    //- Do you have a skill of that skill type?
     function existSkillOfSkillType(actor, stypeId) {
         const skills = actor.skills().filter(item => item && item.stypeId == stypeId);
-        // スキルがひとつもないならコマンド無効
+        // スキルがひとつもないならコマンドinvalid
         return skills.length;
     };
 
 
-    // コマンドの重複を削除
+    // Removed duplicate commands
     function delDeplicatedCommand(array) {
         return array.filter((data, i) => {
             return array.findIndex(d => d.symbol == data.symbol && d.id == data.id) == i;
@@ -610,7 +610,7 @@
     };
 
 
-    //- ヘルプテキストの取得
+    //- Get help text
     function getHelpText(data) {
         if (data.helpName || data.name) {
             const text = findHelpText([data.helpName, data.name], data );
@@ -652,13 +652,13 @@
     };
 
 
-    //- ヘルプテキストの検索
+    //- Searching for Help Text
     function findHelpText(names, data) {
         for (let name of names) {
             for (let d of keke_helpList) {
-                if (d["ヘルプ名"] == name) {
-                    // アイコンも変更
-                    if (d["アイコン"] && !iconIndex) { iconIndex = d["アイコン"]; }
+                if (d["Help Name"] == name) {
+                    // Icon also changed
+                    if (d["Icon"] && !iconIndex) { iconIndex = d["Icon"]; }
                     return d["テキスト"];
                 }
             }
@@ -667,7 +667,7 @@
     };
 
 
-    //- スキルヘルプの取得
+    //- Get Skill Help
     function getSkillHelp(data, cmdType) {
         const obje = cmdType == "skill" ? $dataSkills[data.id] : cmdType == "item" ? $dataItems[data.id] : null;
         if (obje) { return obje.description; }
@@ -675,7 +675,7 @@
     };
 
 
-    //- 独自コマンドExtの追加(処理追加)
+    //- Adding a unique command Ext (adding processing)
     const _Window_ActorCommand_addCommand = Window_ActorCommand.prototype.addCommand;
     Window_ActorCommand.prototype.addCommand = function(name, symbol, enabled = true, ext = null) {
         _Window_ActorCommand_addCommand.apply(this, arguments);
@@ -685,23 +685,23 @@
     };
 
 
-    //- 独自コマンドの追加(処理追加)
+    //- Adding original commands (adding processes)
     const _Scene_Battle_createActorCommandWindow = Scene_Battle.prototype.createActorCommandWindow;
     Scene_Battle.prototype.createActorCommandWindow = function() {
         _Scene_Battle_createActorCommandWindow.apply(this);
         const acWindow = this._actorCommandWindow;
-        // 個別スキル
+        // Individual Skills
         acWindow.setHandler("skillOne", commandSkillOne.bind(this));
-        // 個別アイテム
+        // Individual Items
         acWindow.setHandler("itemOne", commandItemOne.bind(this));
-        // 逃げる
+        // Escape
         acWindow.setHandler("escape", this.commandEscape.bind(this));
-        // 自動戦闘
+        // Autobattle
         acWindow.setHandler("auto", commandAutoBattle.bind(this));
     };
     
     
-    //- コマンド・個別スキル
+    //- Commands and Individual Skills
     function commandSkillOne() {
         const action = BattleManager.inputtingAction();
         if (!action || !action._item) { return; };
@@ -711,7 +711,7 @@
     };
     
     
-    //- コマンド・個別アイテム
+    //- Commands and individual items
     function commandItemOne() {
         const action = BattleManager.inputtingAction();
         if (!action || !action._item) { return; };
@@ -721,7 +721,7 @@
     };
 
 
-    //- 使用可能の更新
+    //- Available Updates
     function updateCan(windo) {
         if (windo._canUpdateWaitKe) { windo._canUpdateWaitKe--;  return;  }
         let changed = false;
@@ -739,10 +739,10 @@
 
 
     //==================================================
-    //--  アクターコマンド/ヘルプ
+    //--  Actor Commands/Help
     //==================================================
 
-    //- ヘルプの更新 呼び出し
+    //- Help Update Call
     const _Window_ActorCommand_select = Window_ActorCommand.prototype.select;
     Window_ActorCommand.prototype.select = function(index) {
         updateHelp(this, index);
@@ -750,7 +750,7 @@
     };
 
 
-    //- ヘルプの更新
+    //- Help Updates
     function updateHelp(windo, index) {
         if (!keke_showSkillHelp) { return; }
         const helpWindow = SceneManager._scene._helpWindow;
@@ -768,10 +768,10 @@
 
     
     //==================================================
-    //--  アイコンの描画
+    //--  Icon drawing
     //==================================================
 
-    //- アイコン描画呼び出し(処理追加)
+    //- Icon drawing call (processing addition)
     const _Window_ActorCommand_drawItem = Window_ActorCommand.prototype.drawItem;
     Window_ActorCommand.prototype.drawItem = function(index) {
         setTimeout(drawIcon, 0, this, index);
@@ -779,7 +779,7 @@
     };
     
     
-    //- アイコン描画
+    //- Icon drawing
     function drawIcon(windo, index) {
         if (!keke_iconShow) { return; }
         const currentData = index >= 0 ? windo._list[index] : null;
@@ -794,31 +794,31 @@
         const guardId = windo._actor.guardSkillId();
         const iconW = ImageManager.iconWidth;
         const iconH = ImageManager.iconHeight;
-        const isRight = keke_iconRel == "右";
-        // スキルアイコンがあったら取得
+        const isRight = keke_iconRel == "Right";
+        // If there is a skill icon, acquire it
         if (symbol == "attack" && !iconIndex) { iconIndex = $dataSkills[attackId] ? $dataSkills[attackId].iconIndex : 0; }
         if (symbol == "guard" && !iconIndex) { iconIndex =  iconIndex = $dataSkills[guardId] ? $dataSkills[guardId].iconIndex : 0;; }
         if (symbol == "skillOne" && !iconIndex) { iconIndex = $dataSkills[id] ? $dataSkills[id].iconIndex : 0; }
         if (symbol == "itemOne" && !iconIndex) { iconIndex = $dataItems[id] ? $dataItems[id].iconIndex : 0; }
-        // アイコン描画
+        // Icon drawing
         if (iconIndex) {
-            // スプライト形成
+            // Sprite Formation
             const iconSprite = createIconSprite(iconIndex);
             scene.addChild(iconSprite);
             windo._iconSpritesKe.push(iconSprite);
-            // 拡大
+            // expansion
             const iconTw = keke_iconSize; 
             const scale = iconTw / iconW;
             iconSprite.scale.x = scale;
             iconSprite.scale.y = scale
-            // 位置
+            //position
             iconSprite.x = windo.x + wPad + rect.x + (isRight ? rect.width + iconTw / 2 - keke_iconPosX :  - iconTw / 2 + keke_iconPosX);
             iconSprite.y = windo.y + wPad + rect.y + iconTw / 2 + (rect.height - iconTw * 0.75) / 2 + keke_iconPosY;
         }
     };
     
     
-    //- アイコンの消去
+    //-Removing the icon
     function delIcon(windo) {
         if (!windo._iconSpritesKe.length) { return; }
         const scene = SceneManager._scene;
@@ -827,16 +827,16 @@
     };
     
     
-    //- ウインドウ閉じるときアイコンも消す(処理追加)
+    //- Delete the icon when closing the window (added process)
     const _Window_ActorCommand_close = Window_ActorCommand.prototype.close;
     Window_ActorCommand.prototype.close = function() {
         _Window_ActorCommand_close.apply(this);
-        // アイコンの消去
+        // Removing the icon
         delIcon(this);
     };
     
     
-    //- ウインドウを出すときアイコンも出す(処理追加)
+    //- When a window is displayed, an icon is also displayed (additional processing)
     const _Window_ActorCommand_show = Window_ActorCommand.prototype.show;
     Window_ActorCommand.prototype.show = function() {
         _Window_ActorCommand_show.apply(this);
@@ -844,7 +844,7 @@
     };
     
     
-    //- ウインドウを消すときアイコンも消す(処理追加)
+    //-Delete the icon when closing the window (added process)
     const _Window_ActorCommand_hide = Window_ActorCommand.prototype.hide;
     Window_ActorCommand.prototype.hide = function() {
         _Window_ActorCommand_hide.apply(this);
@@ -854,60 +854,60 @@
     
     
     //================================================== 
-    //--  アクターコマンド自動伸縮
+    //--  Actor Command Auto Stretch
     //==================================================
     
-    //- ウインドウのリサイズ
+    //- Actor Command Auto Stretch
     function resizeWindow(windo) {
-        // 自動伸縮でなければリターン
+        // Return if not automatic stretch
         if (!keke_windowAutoResize) { return; }
-        // 基本のY位置を保存
+        // Save base Y position
         if (windo._oriYKe == null) { windo._oriYKe = windo.y; }
-        // コマンド数取得
+        // Get number of commands
         let cmdNum = windo._list.length;
-        // 高さ変更
+        // Height change
         windo.height = windo.fittingHeight(cmdNum) * 1;
-        // ウインドウ下端
+        // Window bottom edge
         const downMax = windo._oriYKe + windo.fittingHeight(cmdNum);
-        // 画面外に出ないようにする
+        // Don't let it go off screen
         windo.y = windo._oriYKe;
         if (downMax > keke_windowResizeMax) { windo.y -= downMax - keke_windowResizeMax; }
     };
     
     
-    //- 高さ拡大(処理追加)
+    //- Height expansion (additional processing)
     const _Scene_Battle_actorCommandWindowRect = Scene_Battle.prototype.actorCommandWindowRect;
     Scene_Battle.prototype.actorCommandWindowRect = function() {
         let result = _Scene_Battle_actorCommandWindowRect.apply(this);
-        // 自動伸縮時のみ
+        // Only during automatic stretching
         if (keke_windowAutoResize) { result.height = Graphics.height; }
         return result;
     };
     
     
-    //- キャンセルボタンの再配置
+    //- Cancel button relocation
     function reposCancelButton(windo) {
         const scene = SceneManager._scene;
-        if (keke_cancelAutoRepos == "無効") { return; }
+        if (keke_cancelAutoRepos == "invalid") { return; }
         if (!scene._cancelButton) { return; }
         const button = scene._cancelButton;
         const pos = keke_cancelAutoRepos;
-        if (pos == "上に配置") {
+        if (pos == "Top") {
             button.x = windo.x;
             button.y = windo.y - button.height - 4;
-        } else if (pos == "左上に配置") {
-            // 左上に配置
+        } else if (pos == "TopLeft") {
+            // Placed in the top left
             posLeftUp(windo, button)
-        } else if (pos == "右上に配置") {
-            // 右上に配置
+        } else if (pos == "TopRight") {
+            // Placed at the top right
             posRightUp(windo, button)
         }
     };
 
 
-    //- 左上に配置
+    //- Placed in the top left
     function posLeftUp(windo, button) {
-        // 画面左端に出さない
+        // Do not display on the left side of the screen
         let leftMax = windo.x - button.width;
         if (leftMax < 0) {
             posRightUp(windo, button);
@@ -918,9 +918,9 @@
     };
 
 
-    //- 右上に配置
+    //- Placed at the top right
     function posRightUp(windo, button) {
-        // 画面右端に出さない
+        // Do not display on the right edge of the screen
         let rightMax =  windo.x + windo.width + button.width;
         if (rightMax > Graphics.width) {
             posLeftUp(windo, button);
@@ -931,7 +931,7 @@
     };
 
 
-    //- ウインドウのリチルド
+    //- Window Re-Child
     function rechildWindow(windo) {
         if (windo.parent) { windo.parent.addChild(windo); }
         const button = SceneManager._scene._cancelButton;
@@ -939,7 +939,7 @@
     };
 
 
-    //- キャンセルボタン押し中は敵キャラ決定しない(処理追加)
+    //Enemy character will not be determined while the cancel button is pressed (processing added)
     const _Scene_Battle_onEnemyOk = Scene_Battle.prototype.onEnemyOk;
     Scene_Battle.prototype.onEnemyOk = function() {
         const cancelButton = this._cancelButton;
@@ -950,10 +950,10 @@
     
     
     //==================================================
-    //--  自動戦闘
+    //--  Auto-battle
     //==================================================
     
-    //- 自動戦闘フラグ(処理追加)
+    //- Auto-battle flag (added processing)
     const _Game_BattlerBase_isAutoBattle = Game_BattlerBase.prototype.isAutoBattle;
     Game_BattlerBase.prototype.isAutoBattle = function() {
         let result = _Game_BattlerBase_isAutoBattle.apply(this);
@@ -962,69 +962,69 @@
     };
     
     
-    //- コマンド・自動戦闘
+    //- Command/Auto Battle
     function commandAutoBattle() {
-        // 個別フラグオン
+        // Individual Flag On
         $gameParty.battleMembers().forEach(actor => {
             actor._autoBattleKe = true;
             actor.makeAutoBattleActions();
         });
-        // 全体フラグオン
+        // All flags on
         this._inAutoBattleKe = true;
-        // ウインドウ閉じる
+        // Close window
         this.closeCommandWindows();
         this.selectNextCommand();
     };
     
     
-    //- コマンド・自動戦闘(個別)
+    //- Command/Auto Battle (Individual)
     function commandAutoBattleOne(scene) {
         // 個別フラグオン
         const actor = BattleManager.actor();
-        // アクターがいないならリターン
+        // Individual Flag On
         if (!actor) { return; }
         actor._autoBattleKe = true;
-        // 全体フラグオン
+        // All flags on
         scene._inAutoBattleKe = true;
-        // アクション作成
+        // Action Creation
         actor.makeAutoBattleActions();
-        // ウインドウ閉じる
+        // Close window
         scene.closeCommandWindows();
         scene.selectNextCommand();
     };
     
     
-    //- 自動戦闘の解除
+    //- Disabling Auto-Battle
     function endAutoBattle(scene) {
-        // 個別フラグオフ
+        // Individual Flag Off
         $gameParty.battleMembers().forEach(actor => {
             actor._autoBattleKe = false;
         });
-        // 全体フラグオフ
+        // Global flag off
         scene._inAutoBattleKe = false;
     };
     
     
-     // 自動戦闘の解除(ボタン)
+     // Cancel auto-battle (button)
     function endAutoBattleBtn(scene) {
-        // 自動戦闘の解除
+        // Disabling Auto-Battle
         endAutoBattle(scene);
-        // サウンド
+        // sound
         SoundManager.playCancel();
     };
     
     
-    //- 自動戦闘の更新
+    //- Auto Battle Update
     function updateAutoBattle(scene) {
-        // 自動戦闘中、キャンセルボタンか画面タッチで
+        // During automatic battle, press the cancel button or touch the screen.
         if (scene._inAutoBattleKe && (Input.isTriggered("ok") || Input.isTriggered("cancel") || TouchInput.isTriggered())) {
-            // 自動戦闘終了
+            // Auto battle end
             endAutoBattleBtn(scene);
         }
     };
     
     
-    //- 戦闘終了時に自動戦闘解除(処理追加)
+    //- Automatically cancel battle at the end of battle (processing added)
     const _Scene_Battle_terminate = Scene_Battle.prototype.terminate;
     Scene_Battle.prototype.terminate = function() {
         _Scene_Battle_terminate.apply(this);
@@ -1033,16 +1033,16 @@
 
 
     //==================================================
-    //--  パーティコマンド無効(処理追加)
+    //--  Party command disabled (additional processing)
     //==================================================
     
     const _Scene_Battle_changeInputWindow = Scene_Battle.prototype.changeInputWindow;
     Scene_Battle.prototype.changeInputWindow = function() {
-        // パーティコマンド無効なら
+        // If party command is disabled
         if (keke_noPartyCommand) {
-            // カレントアクターが空になったら
+            // When the current actor is empty
             if (BattleManager.isInputting() && !BattleManager.actor()) {
-                // 次のインプット可アクターをセット
+                // Set the next input-enabled actor
                 for (const actor of $gameParty.battleMembers()) {
                     if (actor.canInput()) {
                         BattleManager._currentActor = actor;
@@ -1062,52 +1062,52 @@
     
     
     //==================================================
-    //--  メタ配列 /ベーシック
+    //--  Meta Arrays /Basic
     //==================================================
      
-    // 全てのメタの合算-配列
+    // All Metas Combined - Array
     function bundleAllMeta_array(battler, words, action, includeSkill) {
         let data = null
         let array = [];
-        // バトラー値
+        // Battler Value
         data = battler._actorId ? battler.actor() : battler.enemy();
         if (data) { metaAll(data.note, words).forEach(e => array.push(e)); }
         if (battler._actorId) {
-            // 職業値
+            // Class Value
             data = battler.currentClass();
             if (data) { metaAll(data.note, words).forEach(e => array.push(e)); }
-            // 装備値
+            // Equipment Value
             battler._equips.forEach(equip => {
                 data = equip.object();
                 if (data) { metaAll(data.note, words).forEach(e => array.push(e)); }
             });
         }
-        // ステート値
+        // State Value
         battler._states.forEach(stateId => {
             data = $dataStates[stateId];
             if (data) { metaAll(data.note, words).forEach(e => array.push(e)); }
         }, battler);
-        // アクション値
+        // Action Value
         if (action) {
             data = action.item();
             if (data) { metaAll(data.note, words).forEach(e => array.push(e)); }
         }
-        // スキル
+        // skill
         if (keke_commandReferSkill && includeSkill) {
             const skills = battler.skills();
             skills.forEach(data => {
                 metaAll(data.note, words).forEach(e => array.push(e));
             })
         }
-        // スペースを削除
+        // Remove spaces
         array = array.map(e => e.replace(/\s/g, ""));
-        // 空の要素は削除
+        // Empty elements are removed
         array = array.filter(e => e);
         return array;
     };
     
     
-   //- 全取得メタ
+   //- All Acquired Meta
     function metaAll(note, words) {
         var result = [];
         words.forEach(word => {
@@ -1128,10 +1128,10 @@
     
     
     //==================================================
-    //--  アイコンスプライト /ベーシック
+    //--Icon Sprite /Basic
     //==================================================
     
-    //- アイコンスプライトの形成
+    //- Icon sprite formation
     function createIconSprite(iconIndex, anchorX = 0.5, anchorY = 0.5) {
         const sprite = new SpriteKeVrac();
         sprite.anchor.x = anchorX;

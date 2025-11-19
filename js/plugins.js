@@ -3,11 +3,15 @@
 var $plugins =
 [
 {"name":"=============================","status":false,"description":"=========================================================================","parameters":{}},
-{"name":"NUUN_Base","status":true,"description":"NuuNBasePlugin","parameters":{}},
-{"name":"NUUN_PartyCommandCustomize","status":true,"description":"パーティコマンドカスタマイズ","parameters":{"PartyCommandList":"[]"}},
+{"name":"NUUN_Base","status":false,"description":"NuuNBasePlugin","parameters":{}},
+{"name":"NUUN_PartyCommandCustomize","status":false,"description":"パーティコマンドカスタマイズ","parameters":{"PartyCommandList":"[]"}},
 {"name":"=============================","status":false,"description":"=========================================================================","parameters":{}},
 {"name":"SS_Custom_Formulas","status":true,"description":"Allows defining multiple named damage formulas as an array.","parameters":{"formulas":"[]"}},
 {"name":"PluginCommonBase","status":true,"description":"Plugin Analysis Common Base","parameters":{}},
 {"name":"CommandSkill","status":false,"description":"コマンドスキルプラグイン","parameters":{"index":"1","includeMenu":"false","showHelp":"false","showHelpAlways":"true","showCost":"false"}},
-{"name":"Keke_VariableActorCommand","status":true,"description":"アクターコマンドを自在に組み替える","parameters":{"window":"","window auto-stretch":"true","window stretch bottom edge":"616","window opacity":"255","icon":"","icon display":"true","icon size":"32","icon X position":"-4","Icon Y Position":"0","Icon Placement":"Left","Touch Button":"","Cancel Button Auto Move":"Place Top","Help":"","Help Registration":"[]","Show skill help":"true","Other":"","Disable party commands":"true","Reference skills in commands.":"true","Terminology/Auto Battle":"Auto"}}
+{"name":"Keke_VariableActorCommand","status":true,"description":"アクターコマンドを自在に組み替える","parameters":{"Window":"","AutoStretching":"true","BottomEdge":"616","WindowOpacity":"255","Icon":"","IconView":"true","IconSize":"32","IconXpos":"-4","IconYpos":"0","IconPlacement":"Left","TouchButton":"","CancelButtonAuto":"Top","ヘルプ":"","RegisterHelp":"[]","SkillHelpDisplay":"true","others":"","PartyCommandDisabled":"true","SkillCommand":"false","NombreAutoBattle":"Auto"}},
+{"name":"TUR_EvalTags","status":true,"description":"Insert JavaScript via notetags at a variety of times.","parameters":{}},
+{"name":"IgnisSkipTitle","status":true,"description":"Jumps the Title Screen, this enables the maker to create title screen with events.","parameters":{}},
+{"name":"IgnisTextDatabase","status":true,"description":"Text Database v.1.0.0","parameters":{"defaultFolder":"text","textFiles":"[\"en\"]","defaultFile":"en"}},
+{"name":"EquipScene_Extension","status":true,"description":"Equipment scene expansion v1.4.2","parameters":{"LayoutMode":"1","ActorFaceHeight":"43\r\nSpecifies the height of the actor's face graphic when","DefaultEquipSlots":"[\"1\",\"2\",\"3\",\"4\",\"5\"]","WeaponTypes":"[\"1\", \"2\"]","DualWieldSlot":"1","WeaponTypeWhenDualWield":"1","NotMultiEquipWeapon":"[]","NotMultiEquipArmor":"[]","RemoveEquipText":"remove","RemoveEquipIconIndex":"0","DisableCommandWindow":"false\r\nWhen"}}
 ];
