@@ -480,14 +480,14 @@
         // Removing the icon
         delIcon(windo);
         // Get command notes from the memo field
-        let cmdNotes = bundleAllMeta_array(actor, ["コマンド", "cmd"], null, true);
+        let cmdNotes = bundleAllMeta_array(actor, ["command", "cmd"], null, true);
         // Supporting multiple occupations
         if (actor._additionalClassIds) {
             actor._additionalClassIds.forEach(classId => {
                 if (!classId) { return; }
                 const classObje = $dataClasses[classId];
                 if (!classObje) { return; }
-                cmdNotes = [...cmdNotes, ...metaAll(classObje.note, ["コマンド", "command"]).map(e => e.replace(/\s/g, "")).filter(e => e)];
+                cmdNotes = [...cmdNotes, ...metaAll(classObje.note, ["command", "command"]).map(e => e.replace(/\s/g, "")).filter(e => e)];
             });
         }
         // Set in command data

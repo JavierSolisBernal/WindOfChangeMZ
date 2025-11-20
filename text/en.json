@@ -5,6 +5,12 @@
 		 
 		"text3": "Remember that you can use escape codes, \n See? I just jumped a line!"
 		},
+	"Hero2": {
+		"name": "Erika",
+		"command": "<command:attack,60, Atacar,,><command:skill/Magic,80, ,,><command:item,80, ,,><command:escape,90, ,,><EquipSlots: [1, 2]>",
+		"text3": "Remember that you can use escape codes, \n See? I just jumped a line!"
+		},	
+		
 	"Test1": {
 		"text1": "Hello \\P[1]",
 		"text2": "Hola \\P[1]",

@@ -3,15 +3,19 @@
 var $plugins =
 [
 {"name":"=============================","status":false,"description":"=========================================================================","parameters":{}},
-{"name":"NUUN_Base","status":false,"description":"NuuNBasePlugin","parameters":{}},
+{"name":"NUUN_Base","status":true,"description":"NuuNBasePlugin","parameters":{}},
 {"name":"NUUN_PartyCommandCustomize","status":false,"description":"パーティコマンドカスタマイズ","parameters":{"PartyCommandList":"[]"}},
 {"name":"=============================","status":false,"description":"=========================================================================","parameters":{}},
 {"name":"SS_Custom_Formulas","status":true,"description":"Allows defining multiple named damage formulas as an array.","parameters":{"formulas":"[]"}},
 {"name":"PluginCommonBase","status":true,"description":"Plugin Analysis Common Base","parameters":{}},
 {"name":"CommandSkill","status":false,"description":"コマンドスキルプラグイン","parameters":{"index":"1","includeMenu":"false","showHelp":"false","showHelpAlways":"true","showCost":"false"}},
-{"name":"Keke_VariableActorCommand","status":true,"description":"アクターコマンドを自在に組み替える","parameters":{"Window":"","AutoStretching":"true","BottomEdge":"616","WindowOpacity":"255","Icon":"","IconView":"true","IconSize":"32","IconXpos":"-4","IconYpos":"0","IconPlacement":"Left","TouchButton":"","CancelButtonAuto":"Top","ヘルプ":"","RegisterHelp":"[]","SkillHelpDisplay":"true","others":"","PartyCommandDisabled":"true","SkillCommand":"false","NombreAutoBattle":"Auto"}},
+{"name":"IgnisTextDatabase","status":true,"description":"Text Database v.1.0.0","parameters":{"defaultFolder":"text","textFiles":"[\"en\"]","defaultFile":"en"}},
+{"name":"Keke_VariableActorCommand","status":true,"description":"アクターコマンドを自在に組み替える","parameters":{"Window":"","AutoStretching":"true","BottomEdge":"616","WindowOpacity":"255","Icon":"","IconView":"false","IconSize":"32","IconXpos":"-4","IconYpos":"0","IconPlacement":"Left","TouchButton":"","CancelButtonAuto":"Top","ヘルプ":"","RegisterHelp":"[]","SkillHelpDisplay":"true","others":"","PartyCommandDisabled":"true","SkillCommand":"false","NombreAutoBattle":"Auto"}},
 {"name":"TUR_EvalTags","status":true,"description":"Insert JavaScript via notetags at a variety of times.","parameters":{}},
 {"name":"IgnisSkipTitle","status":true,"description":"Jumps the Title Screen, this enables the maker to create title screen with events.","parameters":{}},
-{"name":"IgnisTextDatabase","status":true,"description":"Text Database v.1.0.0","parameters":{"defaultFolder":"text","textFiles":"[\"en\"]","defaultFile":"en"}},
-{"name":"EquipScene_Extension","status":true,"description":"Equipment scene expansion v1.4.2","parameters":{"LayoutMode":"1","ActorFaceHeight":"43\r\nSpecifies the height of the actor's face graphic when","DefaultEquipSlots":"[\"1\",\"2\",\"3\",\"4\",\"5\"]","WeaponTypes":"[\"1\", \"2\"]","DualWieldSlot":"1","WeaponTypeWhenDualWield":"1","NotMultiEquipWeapon":"[]","NotMultiEquipArmor":"[]","RemoveEquipText":"remove","RemoveEquipIconIndex":"0","DisableCommandWindow":"false\r\nWhen"}}
+{"name":"EquipScene_Extension","status":true,"description":"Equipment scene expansion v1.4.2","parameters":{"LayoutMode":"1","ActorFaceHeight":"43\r\nSpecifies the height of the actor's face graphic when","DefaultEquipSlots":"[\"1\",\"2\",\"3\",\"4\",\"5\"]","WeaponTypes":"[\"1\", \"2\"]","DualWieldSlot":"1","WeaponTypeWhenDualWield":"1","NotMultiEquipWeapon":"[]","NotMultiEquipArmor":"[]","RemoveEquipText":"remove","RemoveEquipIconIndex":"0","DisableCommandWindow":"false\r\nWhen"}},
+{"name":"Fomar0153_PassiveSkills","status":true,"description":"Implements a passive skill system.","parameters":{"Passive Skill Type Id":"3","Add Passive Skill Type in Skill Menu":"true","Passive Skill Max Points Formula":"this._level","Passive Points Display Name":"PP","Passive Skill Gauge Colour 1":"28","Passive Skill Gauge Colour 2":"29","PP Bar X Offset":"0","PP Bar Y Offset":"0","Passive Skill On Icon Index":"160","Passive Skill Off Icon Index":"16"}},
+{"name":"NRP_AutoState","status":true,"description":"v1.02 Automatically adds the state.","parameters":{"AutoStateOnlyBattle":"false","ClearStateOnDead":"true"}},
+{"name":"SS_NRP_AutoState_EX","status":true,"description":"An extention to NRP_AutoState","parameters":{}},
+{"name":"NUUN_PassiveSkill","status":false,"description":"Passive skill","parameters":{"PassiveSkillConditions":"[]","CondBasePassive":"true","PassiveSkillType":"0","EquipScreenCacheEnabled":"false"}}
 ];
