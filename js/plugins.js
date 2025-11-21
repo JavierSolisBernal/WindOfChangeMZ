@@ -17,5 +17,6 @@ var $plugins =
 {"name":"Fomar0153_PassiveSkills","status":true,"description":"Implements a passive skill system.","parameters":{"Passive Skill Type Id":"3","Add Passive Skill Type in Skill Menu":"true","Passive Skill Max Points Formula":"this._level","Passive Points Display Name":"PP","Passive Skill Gauge Colour 1":"28","Passive Skill Gauge Colour 2":"29","PP Bar X Offset":"0","PP Bar Y Offset":"0","Passive Skill On Icon Index":"160","Passive Skill Off Icon Index":"16"}},
 {"name":"NRP_AutoState","status":true,"description":"v1.02 Automatically adds the state.","parameters":{"AutoStateOnlyBattle":"false","ClearStateOnDead":"true"}},
 {"name":"SS_NRP_AutoState_EX","status":true,"description":"An extention to NRP_AutoState","parameters":{}},
-{"name":"NUUN_PassiveSkill","status":false,"description":"Passive skill","parameters":{"PassiveSkillConditions":"[]","CondBasePassive":"true","PassiveSkillType":"0","EquipScreenCacheEnabled":"false"}}
+{"name":"NUUN_PassiveSkill","status":false,"description":"Passive skill","parameters":{"PassiveSkillConditions":"[]","CondBasePassive":"true","PassiveSkillType":"0","EquipScreenCacheEnabled":"false"}},
+{"name":"IgnisDebugControl","status":false,"description":"Debug control for developing","parameters":{"DebugWindow":"true"}}
 ];
