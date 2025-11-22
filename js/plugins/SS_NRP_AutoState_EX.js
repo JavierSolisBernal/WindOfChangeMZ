@@ -158,12 +158,18 @@
             const note = $dataStates[id]?.note||""; // the full notebox string
             const match = note.match(/<SS_state_cond>([\s\S]*?)<\/SS_state_cond>/i);
             SS_autostates.list_cond[id].custom= match ? match[1].trim() : "";
-            eval (SS_autostates.list_cond[id].custom);
-
-
+            //eval (SS_autostates.list_cond[id].custom);
+			
+			try{
+			result=eval(`${SS_autostates.list_cond[id].custom}`);
+			console.log('entra')
+			}
+			catch(e){
+				result=false;
+			}
+			console.log(result)
         })
-        console.log(SS_autostates.list_cond)
-        /*
+         /*
         const states = makeArray($dataActors.meta.AutoState);
         for (let stateId of statesactors) {
             stateId = Number(stateId)
