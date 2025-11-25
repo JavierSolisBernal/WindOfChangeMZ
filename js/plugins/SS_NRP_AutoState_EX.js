@@ -289,7 +289,6 @@
                     if (cond[0] == "MP") cond[1] = parseInt(parseFloat(cond[1] || 0) * stats["MAXMP"] / 100)
                     if (cond[0] == "TP") cond[1] = parseInt(parseFloat(cond[1] || 0) * stats["MAXTP"] / 100)
                 }
-                console.log(cond[0] + "valor" + cond[1])
                 return cond[3] === 'true' ? stats[cond[0]] >= parseInt(cond[1]) : stats[cond[0]] > parseInt(cond[1])
             });
             allTrue = allTrue.every(id => id);
@@ -329,7 +328,6 @@
         if (obj.onMap) {
             let id_map = $gameMap.mapId()
             array_map=[... obj.onMap]
-            console.log(array_map)
             
             if(array_map.length>0){
                let allTrue = (obj.onMap || []).map((test) => {
