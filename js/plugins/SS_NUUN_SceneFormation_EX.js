@@ -7,21 +7,21 @@
  * @plugindesc An extention to correct the Formation Scene from nuun
  * @author Squall_seawave
  * @version 1.1
- * @Base NUUN_SceneFormation
+ * @base NUUN_SceneFormation
  * @help
  * it is plug an play
  * change the colors to accept the fixed battler
  * fixer battler cannot be moved
+ * 
+ * @command RemoveBattleActor
+ * @text Remove Actor
+ * @desc Removes an actor from battle party.
+ *
+ * @arg actorId
+ * @type actor
+ * @text Actor
+ * @desc Select the actor you want to remove from battle. 
  */
-/*
- * @param BattleFixedActorColor
- * @text Fixed combat member actor
- * @desc Background color of fixed actors in battle. (Common to menu and battle)
- * @type color
- * @default 17
- * @min -1
- * @parent BasicSetting
-*/
 (() => {
 
     const params = PluginManager.parameters("NUUN_SceneFormation");
@@ -34,6 +34,25 @@
         console.warn("NUUN_SceneFormation not installed — extension disabled.");
         return;
     }
+
+
+    PluginManager.registerCommand("SS_NUUN_SceneFormation_EX", "RemoveBattleActor", args => {
+        const actorId = Number(args.actorId);
+        if (!actorId) return; // Skip if none selected
+        if (!$gameParty.battleMembers().some(actor => actor.actorId() === actorId)) return
+        let pos = $gameParty._formationBattleMembers - 1
+        let $_partynew = $gameParty._actors.filter(member => member != actorId)
+        $_partynew.splice(pos, 0, actorId)
+        $gameParty._actors = $_partynew
+        $gameParty._formationBattleMembers = pos
+        $gamePlayer.refresh()
+    });
+
+
+ 
+    
+    
+
 
     __drawBackGroundActor = Window_StatusBase.prototype.drawBackGroundActor
     Window_StatusBase.prototype.drawBackGroundActor = function (index) {
@@ -50,26 +69,26 @@
 
         }
     };
-    __FormationBattleMemberdrawItem= Window_FormationBattleMember.prototype.drawItem
+    __FormationBattleMemberdrawItem = Window_FormationBattleMember.prototype.drawItem
     Window_FormationBattleMember.prototype.drawItem = function (index) {
-       __FormationBattleMemberdrawItem.call(this,index) 
-       const actor = this.actor(index);
-       const rect = this.itemRect(index)
-       if (actor && actor?.isBattleFixed()) {
-            this.drawSmallIcon(314, rect.x+32, rect.width-10, 14); // medium icon
-          //this.drawText(index, rect.x, rect.y + 4, rect.width/2, "center");
-       } 
+        __FormationBattleMemberdrawItem.call(this, index)
+        const actor = this.actor(index);
+        const rect = this.itemRect(index)
+        if (actor && actor?.isBattleFixed()) {
+            this.drawSmallIcon(314, rect.x + 32, rect.width - 10, 14); // medium icon
+            //this.drawText(index, rect.x, rect.y + 4, rect.width/2, "center");
+        }
 
     }
-    __FormationMemberdrawItem= Window_FormationMember.prototype.drawItem
-    Window_FormationMember.prototype.drawItem = function(index) {
-       __FormationMemberdrawItem.call(this,index) 
-       const actor = this.actor(index);
-       const rect = this.itemRect(index)
-       if (actor && actor?.isBattleFixed()) {
-            this.drawSmallIcon(314, rect.x+32, rect.width-10, 14); // medium icon
-          //this.drawText(index, rect.x, rect.y + 4, rect.width/2, "center");
-       } 
+    __FormationMemberdrawItem = Window_FormationMember.prototype.drawItem
+    Window_FormationMember.prototype.drawItem = function (index) {
+        __FormationMemberdrawItem.call(this, index)
+        const actor = this.actor(index);
+        const rect = this.itemRect(index)
+        if (actor && actor?.isBattleFixed()) {
+            this.drawSmallIcon(314, rect.x + 32, rect.width - 10, 14); // medium icon
+            //this.drawText(index, rect.x, rect.y + 4, rect.width/2, "center");
+        }
     };
 
 
@@ -83,9 +102,9 @@
         this.contents.blt(bitmap, sx, sy, pw, ph, x, y, size, size);
     };
 
- 
 
-     
+ 
+ 
 
 
 })();
