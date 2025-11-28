@@ -26,5 +26,6 @@ var $plugins =
 {"name":"SS_NRP_AutoState_EX","status":false,"description":"An extention to NRP_AutoState","parameters":{}},
 {"name":"SS_NUUN_SceneFormation_EX","status":false,"description":"An extention to correct the Formation Scene from nuun","parameters":{}},
 {"name":"SS_MultiParty","status":true,"description":"Allows defining multiple named damage formulas as an array.","parameters":{}},
-{"name":"actor_stepping_animation_(mv)","status":true,"description":"Allows party leader/followers to have stepping anim on map","parameters":{}}
+{"name":"actor_stepping_animation_(mv)","status":true,"description":"Allows party leader/followers to have stepping anim on map","parameters":{}},
+{"name":"SS_FormationScene","status":true,"description":"Allows defining multiple named damage formulas as an array.","parameters":{"size":"4"}}
 ];
