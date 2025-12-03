@@ -273,43 +273,51 @@
     };
 
 
-  
+    WindowBackground.prototype = Object.create(Window_Base.prototype);
+    WindowBackground.prototype._refreshFrame = function () {
+        // Empty → border removed only for this window
+    };
 
     Window_PartyCommand.prototype = Object.create(Window_Command.prototype);
     Window_PartyCommand.prototype.constructor = Window_PartyCommand;
 
     Window_PartyCommand.prototype.initialize = function (rect) {
         Window_Selectable.prototype.initialize.call(this, rect);
-        this._scrollIndex = 0; 
         this.refresh();
     };
-
-     Window_PartyCommand.prototype.maxVisibleItems = function () {
-        return 4
-    };
-
-    Window_PartyCommand.prototype.maxItems = function () {
-        return SP
-    };
-    Window_PartyCommand.prototype.maxCols = function () {
-        return SP
-    };
  
-     Window_PartyCommand.prototype.maxRows = function () {
-        return 1
+    Window_PartyCommand.prototype.itemHeight = function() {
+        return Math.floor(576/SP);
     };
 
+    Window_PartyCommand.prototype.itemWidth = function() {
+        return this.itemHeight()
+    };
+
+    Window_PartyCommand.prototype.maxCols = function() {
+        return SP;
+    };
+
+    Window_PartyCommand.prototype.maxItems = function() {
+        return SP;
+    };
+
+    Window_PartyCommand.prototype.colSpacing = function() {
+        return 8;
+    };
+     
+
+    /*
     // Adjust width of each command box
     Window_PartyCommand.prototype.itemWidth = function () {
-        return 144;
+        return 96;
     }
 
     Window_PartyCommand.prototype.itemHeight = function () {
-        return 144;
+        return 96
     }
-     Window_PartyCommand.prototype.spacing = function (){
-        return 10; // Space between items
-    }
+    */
+    /*
     Window_PartyCommand.prototype.drawItemBackground = function (index) {
         const rect = this.itemRect(index);
         const name = this.commandName(index)
@@ -344,7 +352,7 @@
 
 
     };
-
+    */
     Window_PartyCommand.prototype.makeCommandList = function () {
         this.clearCommandList();
         let empty=Array(SP).fill(null)
@@ -360,7 +368,7 @@
 
 
     }
-
+/*
     Window_PartyCommand.prototype.drawAllItems = function () {
         const topIndex = this.topIndex();
         for (let i = 0; i < this.maxVisibleItems(); i++) {
@@ -381,6 +389,7 @@
     };
 
     Window_PartyCommand.prototype.itemRect = function (index) {
+    
         const rect = Window_Selectable.prototype.itemRect.call(this, index);
 
         // Compute total height of content
@@ -397,7 +406,17 @@
     };
 
 
-    /*
+
+
+    Window_PartyCommand.prototype.maxRows = function () {
+        return 1;
+    }
+
+
+    Window_PartyCommand.prototype.itemHeight = function () {
+        return 144; // height of each command
+    };
+
     Window_PartyCommand.prototype.createArrows = function () {
         // Do nothing → no arrows created
     };
@@ -405,7 +424,7 @@
     Window_PartyCommand.prototype.updateArrows = function () {
         // Prevent the engine from toggling arrow visibility
     };
-    */
+*/
     Window_Command.prototype.commandExt = function (index) {
         return this._list?.[index]?.ext;
     };

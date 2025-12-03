@@ -27,5 +27,5 @@ var $plugins =
 {"name":"SS_NUUN_SceneFormation_EX","status":false,"description":"An extention to correct the Formation Scene from nuun","parameters":{}},
 {"name":"SS_MultiParty","status":true,"description":"Allows defining multiple named damage formulas as an array.","parameters":{}},
 {"name":"actor_stepping_animation_(mv)","status":true,"description":"Allows party leader/followers to have stepping anim on map","parameters":{}},
-{"name":"SS_FormationScene","status":true,"description":"Allows defining multiple named damage formulas as an array.","parameters":{"size":"6","StartParty":"[\"1\",\"0\",\"5\"]"}}
+{"name":"SS_FormationScene","status":true,"description":"Allows defining multiple named damage formulas as an array.","parameters":{"size":"4","StartParty":"[\"1\",\"0\",\"5\"]"}}
 ];
