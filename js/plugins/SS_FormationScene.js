@@ -16,6 +16,13 @@
  * @text Size of party
  * @type number
  * @default 4
+ * 
+ * @param StartParty
+ * @text Actor that start in the party
+ * @desc List of actor IDs
+ * @type number[]
+ * @default []
+ * 
  */
 
 (() => {
@@ -23,7 +30,9 @@
     const params = PluginManager.parameters("SS_FormationScene");
     //Get the size of party from parameter
     const SP = JSON.parse(params["size"] || 4);
-    let _currentParty = []
+    const starting_party = JSON.parse(params["StartParty"] || []).map((id) => { return parseInt(id) === 0 ? null: parseInt(id) });
+    let _currentParty = Array(SP).fill(null);
+    let _hidden = []
     const wm_size = 200
     const sizey = 200
     /*
@@ -32,16 +41,46 @@
     }
     */
     __SS_SPGame_Partyinitialize = Game_Party.prototype.initialize
-    Game_Party.prototype.initialize = function () {
-        this._currentParty = $dataSystem.partyMembers.slice(0, SP)
-        __SS_SPGame_Partyinitialize.call(this)
+
+    //STARTING PARTY from database or parameters
+    Game_Party.prototype.setupStartingMembers = function () {
+        let remaining = $dataSystem.partyMembers.filter((member) => { return !starting_party.includes(member) })
+
+        if (starting_party.length == 0) {
+            this._actors = $dataSystem.partyMembers
+            this._currentParty = $dataSystem.partyMembers.slice(0, SP)
+        }
+        else {
+            this._actors = starting_party.concat(remaining)
+            this._currentParty = starting_party
+        }
+         //this._currentParty = starting_party!=[]? starting_party:$dataSystem.partyMembers.slice(0,SP)
+    };
 
 
-        Game_Party.prototype.allBattleMembers = function () {
-            return this._currentParty.map(id => $gameActors.actor(id));
-            //return this.allMembers().slice(0, this.maxBattleMembers());
-        };
-    }
+    Game_Party.prototype.allMembers = function() {
+    return this._actors.filter(id => id != null).map(id => $gameActors.actor(id));
+    };
+
+    Game_Party.prototype.allBattleMembers = function () {
+        return this._currentParty.filter(id => id != null).map(id => $gameActors.actor(id));
+        //return this.allMembers().slice(0, this.maxBattleMembers());
+    };
+
+
+
+    Game_Actor.prototype.fixed = function () {
+        if (this._fixed === undefined) 
+        this._fixed = this.actor().meta.fixed? true:false;
+        this._partyindex=this.actor().meta.fixed
+        return this._fixed;
+    };
+
+    Game_Actor.prototype.setFixed = function (value) {
+        this._fixed = value;
+    };
+
+
 
     //==============================
     // Custom Scene: Scene_Formation
@@ -93,6 +132,13 @@
         this.createReserveWindow()
         this.createMenuWindow()
 
+        this._menuWindow.setHandler("cancel", this.ProcessCancelMenu.bind(this));
+        this._menuWindow.setHandler("ok", this.ProcessOkMenu.bind(this));
+
+        this._partyWindow.setHandler("cancel", this.ProcessCancelParty.bind(this));
+        this._partyWindow.setHandler("ok", this.ProcessOkParty.bind(this));
+
+
         this._reserveWindow.deselect();
         this._reserveWindow.deactivate();
         this._partyWindow.deselect();
@@ -105,12 +151,48 @@
     };
 
 
+    /*
     Scene_CustomFormation.prototype.update = function () {
-        SS_Scene_MenuBase.prototype.update.call(this);
-        if (Input.isTriggered('cancel')) {
-            this.popScene(); // Returns to previous scene
-        }
+        SS_Scene_MenuBase.prototype.update.call(this);    
     };
+
+        */
+    Scene_CustomFormation.prototype.ProcessOkMenu = function () {
+        index = this._menuWindow.index() || 0
+        let command = this._menuWindow.commandName(index);
+
+        if (["Change", "Remove"].includes(command)) {
+            this._menuWindow.deactivate();
+            this._partyWindow.activate();
+            this._partyWindow.select(0);
+        }
+        if (command == "Revert") {
+            this._menuWindow.activate();
+            this._partyWindow.deactivate();
+            this._partyWindow.deselect;
+        }
+        if (command == "Finish") {
+            this.popScene();
+        }
+
+
+    }
+
+    Scene_CustomFormation.prototype.ProcessOkParty = function () {
+        this._menuWindow.activate();
+        this._partyWindow.deactivate();
+        this._partyWindow.deselect();
+    }
+
+    Scene_CustomFormation.prototype.ProcessCancelMenu = function () {
+        this.popScene();
+    }
+
+    Scene_CustomFormation.prototype.ProcessCancelParty = function () {
+        this._menuWindow.activate();
+        this._partyWindow.deactivate();
+        this._partyWindow.deselect();
+    }
 
     Scene_CustomFormation.prototype.createHelpWindow = function () {
         const x = 0;
@@ -191,24 +273,30 @@
     };
 
 
-    WindowBackground.prototype = Object.create(Window_Base.prototype);
-    WindowBackground.prototype._refreshFrame = function () {
-        // Empty → border removed only for this window
-    };
+  
 
     Window_PartyCommand.prototype = Object.create(Window_Command.prototype);
     Window_PartyCommand.prototype.constructor = Window_PartyCommand;
 
     Window_PartyCommand.prototype.initialize = function (rect) {
         Window_Selectable.prototype.initialize.call(this, rect);
+        this._scrollIndex = 0; 
         this.refresh();
     };
 
-    Window_PartyCommand.prototype.maxItems = function () {
+     Window_PartyCommand.prototype.maxVisibleItems = function () {
         return 4
     };
+
+    Window_PartyCommand.prototype.maxItems = function () {
+        return SP
+    };
     Window_PartyCommand.prototype.maxCols = function () {
-        return 4
+        return SP
+    };
+ 
+     Window_PartyCommand.prototype.maxRows = function () {
+        return 1
     };
 
     // Adjust width of each command box
@@ -216,6 +304,12 @@
         return 144;
     }
 
+    Window_PartyCommand.prototype.itemHeight = function () {
+        return 144;
+    }
+     Window_PartyCommand.prototype.spacing = function (){
+        return 10; // Space between items
+    }
     Window_PartyCommand.prototype.drawItemBackground = function (index) {
         const rect = this.itemRect(index);
         const name = this.commandName(index)
@@ -253,8 +347,8 @@
 
     Window_PartyCommand.prototype.makeCommandList = function () {
         this.clearCommandList();
-
-        let test = _currentParty.concat([null, null, null, null])
+        let empty=Array(SP).fill(null)
+        let test = _currentParty.concat(empty)
         test = test.slice(0, SP)
 
         test.forEach((element, index) => {
@@ -303,17 +397,7 @@
     };
 
 
-
-
-    Window_PartyCommand.prototype.maxRows = function () {
-        return 1;
-    }
-
-
-    Window_PartyCommand.prototype.itemHeight = function () {
-        return 144; // height of each command
-    };
-
+    /*
     Window_PartyCommand.prototype.createArrows = function () {
         // Do nothing → no arrows created
     };
@@ -321,7 +405,7 @@
     Window_PartyCommand.prototype.updateArrows = function () {
         // Prevent the engine from toggling arrow visibility
     };
-
+    */
     Window_Command.prototype.commandExt = function (index) {
         return this._list?.[index]?.ext;
     };
