@@ -41,6 +41,7 @@
     let _hidden = []
     const wm_size = 200
     const sizey = 200
+    const iconIndex = 8
     /*
     if (Utils.isNwjs()) {
         require('nw.gui').Window.get().showDevTools();
@@ -64,7 +65,8 @@
 
         temp.forEach((actorId) => {
             let actor = $gameActors.actor(actorId)
-            if (actor) actor.fixed = false
+            if (actor) actor._fixed = false
+            if (actor) actor._required = false
         })
 
         //this._currentParty = starting_party!=[]? starting_party:$dataSystem.partyMembers.slice(0,SP)
@@ -277,6 +279,15 @@
             return
         }
 
+        let reserve = $gameParty.allMembers().filter(member => !_currentParty.includes(member._actorId))
+
+        reserve=reserve.filter(member=>member._required)
+        if (reserve.length > 0) {
+            this._menuWindow.activate();
+            SoundManager.playBuzzer();
+            return
+        }
+
 
         $gameParty._currentParty = [..._currentParty]
         $gamePlayer.refresh()
@@ -397,8 +408,6 @@
 
     Window_Selectable.prototype.updateOptionSprite = function (index, bitmap, filter) {
         const rect = this.itemRect(index);
-        let commandName = this.commandName(index);
-        const ext = this.commandExt(index)
         let idx = actor.faceIndex()
         const sx = (idx % 4) * 144;
         const sy = Math.floor(idx / 4) * 144;
@@ -424,14 +433,7 @@
                 sx, sy, 144, 144, // source region size stays 144×144
                 0, 0, rect.width, rect.height //rectangle region
             );
-            /*
-            sprite.bitmap.fontFace = this.contents.fontFace;
-            sprite.bitmap.fontSize = this.contents.fontSize;
-            sprite.bitmap.textColor = this.contents.textColor; // optional
-            sprite.bitmap.outlineColor = this.contents.outlineColor;
-            sprite.bitmap.outlineWidth = this.contents.outlineWidth;
-            sprite.bitmap.drawText(commandName, 0, rect.height / 2 - padding, rect.width, rect.height, "center");
-            */
+
 
         }
 
@@ -449,6 +451,7 @@
     Window_Selectable.prototype.updateOptionSpriteText = function (index, filter) {
         const rect = this.itemRect(index);
         let commandName = this.commandName(index);
+        const ext = this.commandExt(index)
         // Remove old sprite if exists
         if (this._optionSprites_text[index]) {
             this.removeChild(this._optionSprites_text[index]);
@@ -469,6 +472,23 @@
         sprite.bitmap.outlineWidth = this.contents.outlineWidth;
         sprite.bitmap.drawText(commandName, 0, rect.height / 2 - padding, rect.width, rect.height, "center");
 
+        const iconset = ImageManager.loadSystem("IconSet");
+        // Each icon is 32×32 in MZ
+        const iconWidth = 32;
+        const iconHeight = 32;
+
+        const sx = (iconIndex % 16) * iconWidth;
+        const sy = Math.floor(iconIndex / 16) * iconHeight;
+
+        let actor = $gameActors.actor(ext);
+
+        if (actor?._required) {
+            sprite.bitmap.blt(
+                iconset,
+                sx, sy, iconWidth, iconHeight,
+                rect.width - iconWidth, 0
+            );
+        }
 
 
 
@@ -492,7 +512,8 @@
         test.forEach((element, index) => {
             actor = $gameActors.actor(element);
             let name = actor ? actor.name() : "Empty"
-            this.addCommand(name, element, true, element);
+
+            this.addCommand(name, element, !(actor?._fixed || false), element);
         });
     }
 
@@ -533,6 +554,17 @@
             this.changeTextColor(ColorManager.textColor(4))
             commandName = "- " + commandName + " -"
             this.drawText(commandName, rect.x, y, rect.width, "center");
+            if (this._optionSprites_text[index]) {
+                this.removeChild(this._optionSprites_text[index]);
+                this._optionSprites_text[index].bitmap.destroy();
+                delete this._optionSprites_text[index];
+            }
+            if (this._optionSprites[index]) {
+                this.removeChild(this._optionSprites[index]);
+                this._optionSprites[index].bitmap.destroy();
+                delete this._optionSprites[index];
+            }
+
         } else {
             actor = $gameActors.actor(ext);
             let face = actor.faceName()
@@ -548,7 +580,7 @@
 
             if (bitmap) {
                 const filter = new PIXI.filters.ColorMatrixFilter();
-                if (ext == 1) {
+                if (actor._fixed) {
                     filter.desaturate();
                 }
                 const blurFilter = new PIXI.filters.BlurFilter();
@@ -584,8 +616,7 @@
         this.addCommand("Remove", null, true, null);
         test.forEach((element, index) => {
             element = $gameActors.actor(element);
-
-            this.addCommand(element?.name(), element?._actorId, true, element);
+            this.addCommand(element?.name(), element?._actorId, !(element?._fixed || false), element);
         });
 
 
@@ -641,12 +672,6 @@
     Window_MenuCommand.prototype.processCancel = function () {
         if (this.isCancelEnabled()) {
             this.updateInputData();
-            // Prevent default cancel sound:
-            // SoundManager.playCancel();  ← do NOT call this.
-
-            // Play buzzer instead:
-            //  SoundManager.playBuzzer();
-
             this.callCancelHandler();
         }
     };
