@@ -60,6 +60,13 @@
             this._actors = starting_party.filter(member => member != null).concat(remaining)
             this._currentParty = starting_party.slice(0, SP)
         }
+        let temp = this._actors.filter(member => !this._currentParty.includes(member))
+
+        temp.forEach((actorId) => {
+            let actor = $gameActors.actor(actorId)
+            if (actor) actor.fixed = false
+        })
+
         //this._currentParty = starting_party!=[]? starting_party:$dataSystem.partyMembers.slice(0,SP)
     };
 
@@ -75,16 +82,21 @@
     };
 
 
-
-    Game_Actor.prototype.fixed = function () {
-        return this._fixed || false;
-    };
-
+    const SSMP_Game_Actor_setup = Game_Actor.prototype.setup;
+    Game_Actor.prototype.setup = function (actorId) {
+        SSMP_Game_Actor_setup.call(this, actorId);
+        // Pull value from database meta
+        const meta = this.actor().meta;
+        this._required = meta?.required || false
+        this._fixed = meta?.fixed || false
+    }
     Game_Actor.prototype.setFixed = function (value) {
         this._fixed = value;
-        this._fixed_position = 0
     };
 
+    Game_Actor.prototype.setRequired = function (value) {
+        this._required = value;
+    };
 
 
     //==============================
@@ -265,11 +277,11 @@
             return
         }
 
-       
+
         $gameParty._currentParty = [..._currentParty]
         $gamePlayer.refresh()
         this.popScene();
-        
+
     }
 
 
@@ -356,6 +368,8 @@
 
     Window_PartyCommand.prototype.initialize = function (rect) {
         Window_Selectable.prototype.initialize.call(this, rect);
+        this._optionSprites = {};
+        this._optionSprites_text = {};
         this.refresh();
     };
 
@@ -381,43 +395,94 @@
     };
 
 
-
-    /*
-    Window_PartyCommand.prototype.drawItemBackground = function (index) {
+    Window_Selectable.prototype.updateOptionSprite = function (index, bitmap, filter) {
         const rect = this.itemRect(index);
-        const name = this.commandName(index)
-        const command = this.commandSymbol(index)
+        let commandName = this.commandName(index);
         const ext = this.commandExt(index)
-        let bitmap = undefined
-        let idx = undefined
-
-
-        if (ext) {
-            actor = $gameActors.actor(ext);
-            let face = actor.faceName()
-            idx = actor.faceIndex()
-            bitmap = ImageManager.loadFace(face);
-
-        }
-        else {
-            bitmap = ImageManager.loadFace("evil");
-            idx = Number(1);
-        }
+        let idx = actor.faceIndex()
         const sx = (idx % 4) * 144;
         const sy = Math.floor(idx / 4) * 144;
-
-        if (!bitmap) return
-        this.contents.clearRect(rect.x, rect.y, rect.width, rect.height);
-        this.contents.blt(
-            bitmap,
-            sx, sy, 144, 144,
-            rect.x + (rect.width - 144) / 2,
-            rect.y
-        );
+        // Remove old sprite if exists
+        if (this._optionSprites[index]) {
+            this.removeChild(this._optionSprites[index]);
+            this._optionSprites[index].bitmap.destroy();
+            delete this._optionSprites[index];
+        }
+        const padding = this.padding; // usually 18
 
 
+
+        // Create new sprite
+        const sprite = new Sprite(new Bitmap(rect.width, rect.height));
+        sprite.x = rect.x + padding;
+        sprite.y = rect.y + padding;
+
+        // Draw the bitmap (e.g., a face or background)
+        if (bitmap) {
+            sprite.bitmap.blt(
+                bitmap,
+                sx, sy, 144, 144, // source region size stays 144×144
+                0, 0, rect.width, rect.height //rectangle region
+            );
+            /*
+            sprite.bitmap.fontFace = this.contents.fontFace;
+            sprite.bitmap.fontSize = this.contents.fontSize;
+            sprite.bitmap.textColor = this.contents.textColor; // optional
+            sprite.bitmap.outlineColor = this.contents.outlineColor;
+            sprite.bitmap.outlineWidth = this.contents.outlineWidth;
+            sprite.bitmap.drawText(commandName, 0, rect.height / 2 - padding, rect.width, rect.height, "center");
+            */
+
+        }
+
+        // Apply PIXI filter if provided
+        if (filter) {
+            sprite.filters = [filter];
+        }
+
+        //this.addChild(sprite);
+        this.addChild(sprite);
+        this._optionSprites[index] = sprite;
     };
-    */
+
+
+    Window_Selectable.prototype.updateOptionSpriteText = function (index, filter) {
+        const rect = this.itemRect(index);
+        let commandName = this.commandName(index);
+        // Remove old sprite if exists
+        if (this._optionSprites_text[index]) {
+            this.removeChild(this._optionSprites_text[index]);
+            this._optionSprites_text[index].bitmap.destroy();
+            delete this._optionSprites_text[index];
+        }
+        const padding = this.padding; // usually 18
+
+        // Create new sprite
+        const sprite = new Sprite(new Bitmap(rect.width, rect.height));
+        sprite.x = rect.x + padding;
+        sprite.y = rect.y + padding;
+
+        sprite.bitmap.fontFace = this.contents.fontFace;
+        sprite.bitmap.fontSize = this.contents.fontSize;
+        sprite.bitmap.textColor = this.contents.textColor; // optional
+        sprite.bitmap.outlineColor = this.contents.outlineColor;
+        sprite.bitmap.outlineWidth = this.contents.outlineWidth;
+        sprite.bitmap.drawText(commandName, 0, rect.height / 2 - padding, rect.width, rect.height, "center");
+
+
+
+
+        // Apply PIXI filter if provided
+        if (filter) {
+            sprite.filters = [filter];
+        }
+
+        //this.addChild(sprite);
+        this.addChild(sprite);
+        this._optionSprites_text[index] = sprite;
+    };
+
+
     Window_PartyCommand.prototype.makeCommandList = function () {
         this.clearCommandList();
         let empty = Array(SP).fill(null)
@@ -430,6 +495,7 @@
             this.addCommand(name, element, true, element);
         });
     }
+
 
     Window_PartyCommand.prototype.itemRect = function (index) {
 
@@ -448,63 +514,57 @@
         return rect;
     };
 
-    /*
-        Window_PartyCommand.prototype.drawAllItems = function () {
-            const topIndex = this.topIndex();
-            for (let i = 0; i < this.maxVisibleItems(); i++) {
-                const index = topIndex + i;
-                if (index < this.maxItems()) {
-                    this.drawItemBackground(index);
-                    this.drawItem(index);
-                }
-            }
-        };
-    
-        Window_PartyCommand.prototype.drawItem = function (index) {
-            const rect = this.itemRect(index);
-            const commandName = this.commandName(index);
-            const y = rect.y + rect.height - this.lineHeight() / 2;
-    
+
+
+    Window_PartyCommand.prototype.drawItem = function (index) {
+        const rect = this.itemRect(index);
+        let commandName = this.commandName(index);
+        let y = rect.y + rect.height - this.lineHeight() / 2;
+
+        const command = this.commandSymbol(index)
+        const ext = this.commandExt(index)
+        let bitmap = undefined
+        let idx = undefined
+
+
+        this.changeTextColor(ColorManager.normalColor())
+        if (commandName == "Empty") {
+            y = y / 2
+            this.changeTextColor(ColorManager.textColor(4))
+            commandName = "- " + commandName + " -"
             this.drawText(commandName, rect.x, y, rect.width, "center");
-        };
-    
-        Window_PartyCommand.prototype.itemRect = function (index) {
-        
-            const rect = Window_Selectable.prototype.itemRect.call(this, index);
-    
-            // Compute total height of content
-            const rows = Math.ceil(this.maxItems() / this.maxCols());
-            const totalHeight = rows * this.itemHeight();
-    
-            // Find vertical offset to center everything
-            const offsetY = (this.innerHeight - totalHeight) / 2;
-    
-            // Apply offset
-            rect.y += offsetY;
-    
-            return rect;
-        };
-    
-    
-    
-    
-        Window_PartyCommand.prototype.maxRows = function () {
-            return 1;
+        } else {
+            actor = $gameActors.actor(ext);
+            let face = actor.faceName()
+            idx = actor.faceIndex()
+            bitmap = ImageManager.loadFace(face);
+
+            const sx = (idx % 4) * 144;
+            const sy = Math.floor(idx / 4) * 144;
+
+
+
+
+
+            if (bitmap) {
+                const filter = new PIXI.filters.ColorMatrixFilter();
+                if (ext == 1) {
+                    filter.desaturate();
+                }
+                const blurFilter = new PIXI.filters.BlurFilter();
+                this.contents.clearRect(rect.x, rect.y, rect.width, rect.height);
+                this.updateOptionSprite(index, bitmap, filter);
+                this.updateOptionSpriteText(index, null)
+                //this.drawText(commandName, rect.x, y, rect.width, "center");
+
+
+            }
+
+
         }
-    
-    
-        Window_PartyCommand.prototype.itemHeight = function () {
-            return 144; // height of each command
-        };
-    
-        Window_PartyCommand.prototype.createArrows = function () {
-            // Do nothing → no arrows created
-        };
-    
-        Window_PartyCommand.prototype.updateArrows = function () {
-            // Prevent the engine from toggling arrow visibility
-        };
-    */
+
+    };
+
     Window_Command.prototype.commandExt = function (index) {
         return this._list?.[index]?.ext;
     };
