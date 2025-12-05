@@ -57,7 +57,7 @@
             this._currentParty = $dataSystem.partyMembers.slice(0, SP)
         }
         else {
-            this._actors = starting_party.filter(member=>member!=null).concat(remaining)
+            this._actors = starting_party.filter(member => member != null).concat(remaining)
             this._currentParty = starting_party.slice(0, SP)
         }
         //this._currentParty = starting_party!=[]? starting_party:$dataSystem.partyMembers.slice(0,SP)
@@ -108,10 +108,6 @@
         this.initialize(...arguments);
     }
 
-    function WindowBackground() {
-        this.initialize(...arguments);
-    }
-
     function Window_PartyCommand() {
         this.initialize(...arguments);
     }
@@ -130,7 +126,7 @@
     };
 
     Scene_CustomFormation.prototype.create = function () {
-        _currentParty =  [...$gameParty._currentParty]
+        _currentParty = [...$gameParty._currentParty]
         SS_Scene_MenuBase.prototype.create.call(this);
         this._current_menu = null
         this._selectedmember = null
@@ -146,7 +142,7 @@
         this._partyWindow.setHandler("ok", this.ProcessOkParty.bind(this));
 
 
-        
+
         this._reserveWindow.setHandler("cancel", this.ProcessCancelReserve.bind(this));
         this._reserveWindow.setHandler("ok", this.ProcessOkReserve.bind(this));
 
@@ -162,7 +158,7 @@
     };
 
 
- 
+
     Scene_CustomFormation.prototype.ProcessOkMenu = function () {
         index = this._menuWindow.index() || 0
 
@@ -175,7 +171,7 @@
             this._partyWindow.select(0);
         }
         if (command == "Revert") {
-            _currentParty =  [...$gameParty._currentParty]
+            _currentParty = [...$gameParty._currentParty]
             this._partyWindow.makeCommandList()
             this._reserveWindow.makeCommandList()
             this._partyWindow.refresh()
@@ -215,32 +211,33 @@
             this._partyWindow.deactivate();
         }
 
-        /*
-        
-        this._menuWindow.activate();
-        this._partyWindow.deactivate();
-        this._partyWindow.deselect();
-       */
 
     }
 
 
     Scene_CustomFormation.prototype.ProcessOkReserve = function () {
-            let partyindex = this._partyWindow.index()
-            let index = this._reserveWindow.index()
-            let reserveid = this._reserveWindow.commandSymbol(index)
-             _currentParty[partyindex]=reserveid
-             
-            this._partyWindow.makeCommandList()
-            this._reserveWindow.makeCommandList()
-            this._partyWindow.refresh()
-            this._reserveWindow.refresh()
-            this._reserveWindow.activate();
-            this._partyWindow.deactivate(); 
-        
+        let partyindex = this._partyWindow.index()
+        let index = this._reserveWindow.index()
+        let reserveid = this._reserveWindow.commandSymbol(index)
+
+        if (!_currentParty.includes(reserveid)) { _currentParty[partyindex] = reserveid }
+        else {
+            let temp_index = _currentParty.indexOf(reserveid)
+            _currentParty[temp_index] = _currentParty[partyindex]
+            _currentParty[partyindex] = reserveid
+
+        }
+
+        this._partyWindow.makeCommandList()
+        this._reserveWindow.makeCommandList()
+        this._partyWindow.refresh()
+        this._reserveWindow.refresh()
+        this._reserveWindow.activate();
+        this._partyWindow.deactivate();
+
 
     }
-    
+
     Scene_CustomFormation.prototype.ProcessCancelReserve = function () {
         this._reserveWindow.deactivate();
         this._reserveWindow.deselect();
@@ -260,10 +257,19 @@
 
 
 
-    Scene_CustomFormation.prototype.ProcessEnd= function () {
-        $gameParty._currentParty=[..._currentParty]
+    Scene_CustomFormation.prototype.ProcessEnd = function () {
+        test = _currentParty.filter(member => member != null)
+        if (test.length === 0) {
+            this._menuWindow.activate();
+            SoundManager.playBuzzer();
+            return
+        }
+
+       
+        $gameParty._currentParty = [..._currentParty]
         $gamePlayer.refresh()
         this.popScene();
+        
     }
 
 
@@ -323,13 +329,13 @@
         const height = Graphics.boxHeight - (sizey + this.calcWindowHeight(1, true));
         const rect = new Rectangle(0, 0, width, height);
         this._reserveWindow = new Window_ReserveCommand(rect);
-        this._reserveWindow.opacity = 255; 
+        this._reserveWindow.opacity = 255;
         this._reserveWindow.y = (sizey + this.calcWindowHeight(1, true))
         this.addWindow(this._reserveWindow);
         this._reserveWindow.makeCommandList();
 
         this._reserveWindow.refresh()
-       
+
     };
 
 
@@ -338,12 +344,12 @@
     Scene_CustomFormation.prototype.start = function () {
         _Scene_CustomFormation.call(this);
         if (this._partyWindow) {
-            this._partyWindow.makeCommandList(); 
-            this._partyWindow.refresh();         
+            this._partyWindow.makeCommandList();
+            this._partyWindow.refresh();
         }
     };
 
- 
+
 
     Window_PartyCommand.prototype = Object.create(Window_Command.prototype);
     Window_PartyCommand.prototype.constructor = Window_PartyCommand;
@@ -511,14 +517,14 @@
     Window_ReserveCommand.prototype.makeCommandList = function () {
         this.clearCommandList();
 
-        let reserve = $gameParty._actors.filter(member=>!_currentParty.includes(member))
-        let party=_currentParty.filter(member=>member!=null)
+        let reserve = $gameParty._actors.filter(member => !_currentParty.includes(member))
+        let party = _currentParty.filter(member => member != null)
         let test = party.concat(reserve)
 
         this.addCommand("Remove", null, true, null);
         test.forEach((element, index) => {
-            element=$gameActors.actor(element);
-            
+            element = $gameActors.actor(element);
+
             this.addCommand(element?.name(), element?._actorId, true, element);
         });
 
@@ -536,7 +542,7 @@
         const y = rect.y
 
         //let party = $gameParty.allMembers().filter(member => _currentParty.includes(member._actorId))
-        if (command==null)
+        if (command == null)
             this.changeTextColor(ColorManager.textColor(2))
         else if (_currentParty.includes(command))
             this.changeTextColor(ColorManager.textColor(6))
@@ -572,7 +578,18 @@
         this.addCommand("Finish", "finish", true);
     }
 
+    Window_MenuCommand.prototype.processCancel = function () {
+        if (this.isCancelEnabled()) {
+            this.updateInputData();
+            // Prevent default cancel sound:
+            // SoundManager.playCancel();  ← do NOT call this.
 
+            // Play buzzer instead:
+            //  SoundManager.playBuzzer();
+
+            this.callCancelHandler();
+        }
+    };
 
     window.Scene_CustomFormation = Scene_CustomFormation;
 
