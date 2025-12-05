@@ -629,7 +629,7 @@
         const commandName = this.commandName(index);
         const command = this.commandSymbol(index)
 
-        const ext = this.commandName(index);
+       
         const y = rect.y
 
         //let party = $gameParty.allMembers().filter(member => _currentParty.includes(member._actorId))
@@ -640,7 +640,7 @@
         else
             this.changeTextColor(ColorManager.normalColor())
         //this.drawText(commandName, rect.x, y, rect.width, "left");
-        this.drawReserveName(commandName, rect.x, y, rect.width);
+        this.drawReserveName(index, rect.x, y, rect.width);
     };
 
     Window_ReserveCommand.prototype.commandExt = function (index) {
@@ -648,14 +648,19 @@
     };
 
 
-    Window_Base.prototype.drawReserveName = function (actor, x, y, width) {
-
+    Window_Base.prototype.drawReserveName = function (index, x, y, width) {
+        const name = this.commandName(index);
+        const command = this.commandSymbol(index)
         const iconY = y + (this.lineHeight() - ImageManager.iconHeight) / 2;
         const delta = ImageManager.standardIconWidth - ImageManager.iconWidth;
         const textMargin = ImageManager.standardIconWidth + 4;
         const itemWidth = Math.max(0, width - textMargin);
         this.drawIcon(3, x + delta / 2, iconY);
-        this.drawText(actor, x + textMargin, y, itemWidth);
+        this.drawText(name, x + textMargin, y, itemWidth);
+        actor=$gameActors.actor(command)
+        if(actor?._required)
+        this.drawIcon(iconIndex, width-textMargin, iconY);
+
     };
 
 
