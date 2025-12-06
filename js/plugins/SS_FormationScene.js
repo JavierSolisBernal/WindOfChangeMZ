@@ -71,8 +71,8 @@
  * 
  * 
  * @command SetFixedActor
- * @text Set Postition fixed
- * @desc Change the status of the required actor
+ * @text Set Fixed Position
+ * @desc Set a position fixed for an actor
  * @arg actorId
  * @type actor
  * @text Actor
@@ -81,7 +81,13 @@
  * @arg position
  * @type number
  * @text Position
- * @desc Select the position of the party if it is bigger 
+ * @default 1
+ * @min 1
+ * @max 6
+ * @desc 
+ * Select position of party
+ * starting from 1...size of party
+ * if it is bigger 
  * than size of party then the actor becomes unfixed
  * 
  */
@@ -112,19 +118,22 @@
 
     PluginManager.registerCommand("SS_FormationScene", "SetFixedActor", args => {
         const actorId = Number(args.actorId);
-        const position = Number(args.position);
+        const position = Number(args.position)-1;
 
         const actor = $gameActors.actor(actorId)
 
         if (!actor) return
         if (position > SP || position < 0) { actor.setFixed(false) }
         else { 
-         
-            /*
+
+            const pos=  $gameParty._currentParty.indexOf(actorId);
+
+            if(pos>=0) $gameParty._currentParty[pos]=null
             $gameParty._currentParty[position]=actorId
-            $gameParty.refresh()
-            actor.setFixed(false)
-            */
+            $gamePlayer.refresh()
+            _currentParty=[...$gameParty._currentParty]
+            actor.setFixed(true)
+           
         }
 
 
