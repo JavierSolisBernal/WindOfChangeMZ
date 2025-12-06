@@ -89,7 +89,14 @@
  * starting from 1...size of party
  * if it is bigger 
  * than size of party then the actor becomes unfixed
- * 
+ *
+ * @command ReleaseFixedActor
+ * @text Release Fixed Position
+ * @desc Make an actor not fixed
+ * @arg actorId
+ * @type actor
+ * @text Actor
+ * @desc Select the actor you want to fix
  */
 
 (() => {
@@ -140,12 +147,20 @@
     });
 
 
-    __SS_SPGame_Partyinitialize = Game_Party.prototype.initialize
+    
+    PluginManager.registerCommand("SS_FormationScene", "ReleaseFixedActor", args => {
+        const actorId = Number(args.actorId);
+        const actor = $gameActors.actor(actorId)
+        if(actor)actor.setFixed(false)
+    });
 
-    //STARTING PARTY FROM DATABASE OR PARAMETER
+
+    __SS_SPGame_Partyinitialize = Game_Party.prototype.initialize
+ 
     Game_Party.prototype.setupStartingMembers = function () {
         let remaining = $dataSystem.partyMembers.filter((member) => { return !starting_party.includes(member) })
 
+        //STARTING PARTY FROM PARAMETER OR DATABASE 
         if (starting_party.length == 0) {
             this._actors = $dataSystem.partyMembers
             this._currentParty = $dataSystem.partyMembers.slice(0, SP)
@@ -156,35 +171,40 @@
         }
         let temp = this._actors.filter(member => !this._currentParty.includes(member))
 
+        // IF THE ACTOR IS NOT IN PARTY REMOVE THE FIXED AND REQUIRED ATTRIBUTE
         temp.forEach((actorId) => {
             let actor = $gameActors.actor(actorId)
             if (actor) actor._fixed = false
             if (actor) actor._required = false
         })
 
-        //this._currentParty = starting_party!=[]? starting_party:$dataSystem.partyMembers.slice(0,SP)
-    };
+     };
 
-
+    //ALIAS OF PARTY METHODS
+    ss_party_allMembers=Game_Party.prototype.allMembers
     Game_Party.prototype.allMembers = function () {
+        ss_party_allMembers.call(this)
         return this._actors.filter(id => id != null).map(id => $gameActors.actor(id));
         //return this._actors.map(id => $gameActors.actor(id));
     };
-
+    ss_party_allBattleMembers=Game_Party.prototype.allBattleMembers
     Game_Party.prototype.allBattleMembers = function () {
+        ss_party_allBattleMembers.call(this)
         return this._currentParty.filter(id => id != null).map(id => $gameActors.actor(id));
         //return this.allMembers().slice(0, this.maxBattleMembers());
     };
 
-
-    const SSMP_Game_Actor_setup = Game_Actor.prototype.setup;
+    //GET THE TAGS FROM ACTOR MEMO
+    ss_party_Game_Actor_setup = Game_Actor.prototype.setup;
     Game_Actor.prototype.setup = function (actorId) {
-        SSMP_Game_Actor_setup.call(this, actorId);
+        ss_party_Game_Actor_setup.call(this, actorId);
         // Pull value from database meta
         const meta = this.actor().meta;
         this._required = meta?.required || false
         this._fixed = meta?.fixed || false
     }
+
+    //METHODS TO ADD PROPIETY TO ACTOR
     Game_Actor.prototype.setFixed = function (value) {
         this._fixed = value;
     };
@@ -193,13 +213,8 @@
         this._required = value;
     };
 
-
-    //==============================
-    // Custom Scene: Scene_Formation
-    //==============================
-
-    // Step 1: Custom Base Scene
-    function SS_Scene_MenuBase() {
+    //SCENE BASE FOR REPLACEMENT OF SCENE
+     function SS_Scene_MenuBase() {
         this.initialize(...arguments);
     }
 
