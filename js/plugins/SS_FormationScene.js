@@ -114,7 +114,10 @@
     const iconparty = JSON.parse(params["iconparty"] || 4);
     const iconremove = JSON.parse(params["iconremove"] || 4);
 
-
+   if (Utils.isNwjs() && Utils.isOptionValid("test")) {
+        const win = nw.Window.get();
+        win.showDevTools();
+    }
     PluginManager.registerCommand("SS_FormationScene", "ChangeRequiredtoActor", args => {
         const required = args.required == "true"; // convert to boolean
         const actorId = Number(args.actorId);
@@ -218,11 +221,29 @@
         this.initialize(...arguments);
     }
 
+
+
+
     SS_Scene_MenuBase.prototype = Object.create(Scene_MenuBase.prototype);
     SS_Scene_MenuBase.prototype.constructor = SS_Scene_MenuBase;
 
     SS_Scene_MenuBase.prototype.logMessage = function (msg) {
         console.log("[SS_Scene_MenuBase] " + msg);
+    };
+
+    Scene_Menu.prototype.commandFormation = function() {
+       SceneManager.push(Scene_CustomFormation);
+    };
+
+
+    const ss_Scene_Menu_start = Scene_Menu.prototype.start;
+    Scene_Menu.prototype.start = function() {
+        ss_Scene_Menu_start.call(this);
+         if (Scene_Menu.prototype.needsMenuRefresh) {
+            console.log('est')
+            this._statusWindow.refresh();
+            Scene_Menu.prototype.needsMenuRefresh = false;
+        }
     };
 
 
@@ -406,7 +427,12 @@
 
     }
 
-
+    Scene_CustomFormation.prototype.terminate = function() {
+        // Custom behavior
+        Scene_Menu.prototype.needsMenuRefresh = true;
+        // Cleanup the base scene stuff
+        Scene_Base.prototype.terminate.call(this);
+    };
     Scene_CustomFormation.prototype.createHelpWindow = function () {
         const x = 0;
         const y = 0;
@@ -692,7 +718,8 @@
             if (bitmap) {
                 const filter = new PIXI.filters.ColorMatrixFilter();
                 if (actor._fixed) {
-                    filter.desaturate();
+                    //filter.desaturate();
+                   filter.greyscale(0.2); 
                 }
                 const blurFilter = new PIXI.filters.BlurFilter();
                 this.contents.clearRect(rect.x, rect.y, rect.width, rect.height);
