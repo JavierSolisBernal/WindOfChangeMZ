@@ -8,7 +8,7 @@
  * @author Squall_seawave
  * @version 0.1
  * @help
- * <fixed:1> if this it is it put an actor fixed in the position
+ * <fixed> if this it is it put an actor fixed in the position
  * @param size
  * @text Size of party
  * @type select
@@ -29,6 +29,30 @@
  * @type number[]
  * @default []
  * 
+ * @param iconlock
+ * @text Id of the icon for required actors
+ * @desc Add the id of the index of the icon  
+ * @type number
+ * @default 0
+ * 
+ * @param iconreserve
+ * @text Id of the icon for reserved actors
+ * @desc Add the id of the index of the icon  
+ * @type number
+ * @default 0
+ * 
+ * @param iconparty
+ * @text Id of the icon for actors in party
+ * @desc Add the id of the index of the icon  
+ * @type number
+ * @default 0
+ * 
+ * @param iconremove
+ * @text Id of the icon for Remove option
+ * @desc Add the id of the index of the icon  
+ * @type number
+ * @default 0
+ * 
  */
 
 (() => {
@@ -41,7 +65,10 @@
     let _hidden = []
     const wm_size = 200
     const sizey = 200
-    const iconIndex = 8
+    const iconIndex = JSON.parse(params["iconlock"] || 4);
+    const iconreserve = JSON.parse(params["iconreserve"] || 4);
+    const iconparty = JSON.parse(params["iconparty"] || 4);
+    const iconremove = JSON.parse(params["iconremove"] || 4);
     /*
     if (Utils.isNwjs()) {
         require('nw.gui').Window.get().showDevTools();
@@ -234,7 +261,10 @@
         let index = this._reserveWindow.index()
         let reserveid = this._reserveWindow.commandSymbol(index)
 
-        if (!_currentParty.includes(reserveid)) { _currentParty[partyindex] = reserveid }
+        if (reserveid == null) {
+            _currentParty[partyindex]=null
+        }
+        else if (!_currentParty.includes(reserveid)) { _currentParty[partyindex] = reserveid }
         else {
             let temp_index = _currentParty.indexOf(reserveid)
             _currentParty[temp_index] = _currentParty[partyindex]
@@ -281,7 +311,7 @@
 
         let reserve = $gameParty.allMembers().filter(member => !_currentParty.includes(member._actorId))
 
-        reserve=reserve.filter(member=>member._required)
+        reserve = reserve.filter(member => member._required)
         if (reserve.length > 0) {
             this._menuWindow.activate();
             SoundManager.playBuzzer();
@@ -629,7 +659,7 @@
         const commandName = this.commandName(index);
         const command = this.commandSymbol(index)
 
-       
+
         const y = rect.y
 
         //let party = $gameParty.allMembers().filter(member => _currentParty.includes(member._actorId))
@@ -654,12 +684,15 @@
         const iconY = y + (this.lineHeight() - ImageManager.iconHeight) / 2;
         const delta = ImageManager.standardIconWidth - ImageManager.iconWidth;
         const textMargin = ImageManager.standardIconWidth + 4;
-        const itemWidth = Math.max(0, width - textMargin);
-        this.drawIcon(3, x + delta / 2, iconY);
+        const itemWidth = Math.max(0, width - textMargin)
+        let icon = !_currentParty.filter(member => member != null).includes(command) ? iconparty : iconreserve
+        if (name == "Remove") icon = iconremove
+        this.drawIcon(icon, x + delta / 2, iconY);
         this.drawText(name, x + textMargin, y, itemWidth);
-        actor=$gameActors.actor(command)
-        if(actor?._required)
-        this.drawIcon(iconIndex, width-textMargin, iconY);
+        actor = $gameActors.actor(command)
+
+        if (actor?._required)
+            this.drawIcon(iconIndex, width - textMargin, iconY);
 
     };
 
