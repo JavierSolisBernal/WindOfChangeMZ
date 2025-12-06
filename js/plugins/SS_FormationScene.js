@@ -53,6 +53,37 @@
  * @type number
  * @default 0
  * 
+ * @command ChangeRequiredtoActor
+ * @text Add required
+ * @desc Change the status of the required actor
+ *
+ * @arg actorId
+ * @type actor
+ * @text Actor
+ * @desc Select the actor you want to make required
+
+ * @arg required
+ * @type boolean
+ * @on Yes
+ * @off No
+ * @text Required
+ * @desc Change the flag to required
+ * 
+ * 
+ * @command SetFixedActor
+ * @text Set Postition fixed
+ * @desc Change the status of the required actor
+ * @arg actorId
+ * @type actor
+ * @text Actor
+ * @desc Select the actor you want to fix
+ * 
+ * @arg position
+ * @type number
+ * @text Position
+ * @desc Select the position of the party if it is bigger 
+ * than size of party then the actor becomes unfixed
+ * 
  */
 
 (() => {
@@ -69,11 +100,37 @@
     const iconreserve = JSON.parse(params["iconreserve"] || 4);
     const iconparty = JSON.parse(params["iconparty"] || 4);
     const iconremove = JSON.parse(params["iconremove"] || 4);
-    /*
-    if (Utils.isNwjs()) {
-        require('nw.gui').Window.get().showDevTools();
-    }
-    */
+
+
+    PluginManager.registerCommand("SS_FormationScene", "ChangeRequiredtoActor", args => {
+        const required = args.required == "true"; // convert to boolean
+        const actorId = Number(args.actorId);
+        const actor = $gameActors.actor(actorId)
+        if (actor) actor.setRequired(required)
+    });
+
+
+    PluginManager.registerCommand("SS_FormationScene", "SetFixedActor", args => {
+        const actorId = Number(args.actorId);
+        const position = Number(args.position);
+
+        const actor = $gameActors.actor(actorId)
+
+        if (!actor) return
+        if (position > SP || position < 0) { actor.setFixed(false) }
+        else { 
+         
+            /*
+            $gameParty._currentParty[position]=actorId
+            $gameParty.refresh()
+            actor.setFixed(false)
+            */
+        }
+
+
+    });
+
+
     __SS_SPGame_Partyinitialize = Game_Party.prototype.initialize
 
     //STARTING PARTY FROM DATABASE OR PARAMETER
@@ -262,7 +319,7 @@
         let reserveid = this._reserveWindow.commandSymbol(index)
 
         if (reserveid == null) {
-            _currentParty[partyindex]=null
+            _currentParty[partyindex] = null
         }
         else if (!_currentParty.includes(reserveid)) { _currentParty[partyindex] = reserveid }
         else {
