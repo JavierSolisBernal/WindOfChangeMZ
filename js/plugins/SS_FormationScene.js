@@ -114,7 +114,7 @@
     const iconparty = JSON.parse(params["iconparty"] || 4);
     const iconremove = JSON.parse(params["iconremove"] || 4);
 
-   if (Utils.isNwjs() && Utils.isOptionValid("test")) {
+    if (Utils.isNwjs() && Utils.isOptionValid("test")) {
         const win = nw.Window.get();
         win.showDevTools();
     }
@@ -128,38 +128,38 @@
 
     PluginManager.registerCommand("SS_FormationScene", "SetFixedActor", args => {
         const actorId = Number(args.actorId);
-        const position = Number(args.position)-1;
+        const position = Number(args.position) - 1;
 
         const actor = $gameActors.actor(actorId)
 
         if (!actor) return
         if (position > SP || position < 0) { actor.setFixed(false) }
-        else { 
+        else {
 
-            const pos=  $gameParty._currentParty.indexOf(actorId);
+            const pos = $gameParty._currentParty.indexOf(actorId);
 
-            if(pos>=0) $gameParty._currentParty[pos]=null
-            $gameParty._currentParty[position]=actorId
+            if (pos >= 0) $gameParty._currentParty[pos] = null
+            $gameParty._currentParty[position] = actorId
             $gamePlayer.refresh()
-            _currentParty=[...$gameParty._currentParty]
+            _currentParty = [...$gameParty._currentParty]
             actor.setFixed(true)
-           
+
         }
 
 
     });
 
 
-    
+
     PluginManager.registerCommand("SS_FormationScene", "ReleaseFixedActor", args => {
         const actorId = Number(args.actorId);
         const actor = $gameActors.actor(actorId)
-        if(actor)actor.setFixed(false)
+        if (actor) actor.setFixed(false)
     });
 
 
     __SS_SPGame_Partyinitialize = Game_Party.prototype.initialize
- 
+
     Game_Party.prototype.setupStartingMembers = function () {
         let remaining = $dataSystem.partyMembers.filter((member) => { return !starting_party.includes(member) })
 
@@ -181,16 +181,16 @@
             if (actor) actor._required = false
         })
 
-     };
+    };
 
     //ALIAS OF PARTY METHODS
-    ss_party_allMembers=Game_Party.prototype.allMembers
+    ss_party_allMembers = Game_Party.prototype.allMembers
     Game_Party.prototype.allMembers = function () {
         ss_party_allMembers.call(this)
         return this._actors.filter(id => id != null).map(id => $gameActors.actor(id));
         //return this._actors.map(id => $gameActors.actor(id));
     };
-    ss_party_allBattleMembers=Game_Party.prototype.allBattleMembers
+    ss_party_allBattleMembers = Game_Party.prototype.allBattleMembers
     Game_Party.prototype.allBattleMembers = function () {
         ss_party_allBattleMembers.call(this)
         return this._currentParty.filter(id => id != null).map(id => $gameActors.actor(id));
@@ -217,7 +217,7 @@
     };
 
     //SCENE BASE FOR REPLACEMENT OF SCENE
-     function SS_Scene_MenuBase() {
+    function SS_Scene_MenuBase() {
         this.initialize(...arguments);
     }
 
@@ -231,15 +231,15 @@
         console.log("[SS_Scene_MenuBase] " + msg);
     };
 
-    Scene_Menu.prototype.commandFormation = function() {
-       SceneManager.push(Scene_CustomFormation);
+    Scene_Menu.prototype.commandFormation = function () {
+        SceneManager.push(Scene_CustomFormation);
     };
 
 
     const ss_Scene_Menu_start = Scene_Menu.prototype.start;
-    Scene_Menu.prototype.start = function() {
+    Scene_Menu.prototype.start = function () {
         ss_Scene_Menu_start.call(this);
-         if (Scene_Menu.prototype.needsMenuRefresh) {
+        if (Scene_Menu.prototype.needsMenuRefresh) {
             console.log('est')
             this._statusWindow.refresh();
             Scene_Menu.prototype.needsMenuRefresh = false;
@@ -261,6 +261,9 @@
     function Window_MenuCommand() {
         this.initialize(...arguments);
     }
+    function Window_PartyStatus() {
+        this.initialize(...arguments);
+    }
     Scene_CustomFormation.prototype = Object.create(SS_Scene_MenuBase.prototype);
     Scene_CustomFormation.prototype.constructor = Scene_CustomFormation;
 
@@ -277,17 +280,17 @@
         this.createHelpWindow();
         this.createReserveWindow()
         this.createMenuWindow()
-
+        this.createStatusWindow()
         this._menuWindow.setHandler("cancel", this.ProcessCancelMenu.bind(this));
         this._menuWindow.setHandler("ok", this.ProcessOkMenu.bind(this));
 
         this._partyWindow.setHandler("cancel", this.ProcessCancelParty.bind(this));
         this._partyWindow.setHandler("ok", this.ProcessOkParty.bind(this));
-
-
+        this._partyWindow.setHandler("cursorMove", this.onSelectionChange.bind(this));
 
         this._reserveWindow.setHandler("cancel", this.ProcessCancelReserve.bind(this));
         this._reserveWindow.setHandler("ok", this.ProcessOkReserve.bind(this));
+        this._reserveWindow.setHandler("cursorMove", this.onSelectionChange.bind(this));
 
         this._reserveWindow.deselect();
         this._reserveWindow.deactivate();
@@ -312,6 +315,7 @@
             this._menuWindow.deactivate();
             this._partyWindow.activate();
             this._partyWindow.select(0);
+            this.onSelectionChange()
         }
         if (command == "Revert") {
             _currentParty = [...$gameParty._currentParty]
@@ -353,7 +357,7 @@
             this._reserveWindow.activate();
             this._partyWindow.deactivate();
         }
-
+        this.onSelectionChange()
 
     }
 
@@ -380,6 +384,7 @@
         this._reserveWindow.refresh()
         this._reserveWindow.activate();
         this._partyWindow.deactivate();
+        this.onSelectionChange()
 
 
     }
@@ -388,6 +393,7 @@
         this._reserveWindow.deactivate();
         this._reserveWindow.deselect();
         this._partyWindow.activate();
+        this.onSelectionChange()
     }
 
     Scene_CustomFormation.prototype.ProcessCancelMenu = function () {
@@ -399,6 +405,8 @@
         this._partyWindow.deactivate();
         this._partyWindow.deselect();
         this._current_menu = null
+        this.onSelectionChange()
+
     }
 
 
@@ -422,12 +430,35 @@
 
 
         $gameParty._currentParty = [..._currentParty]
+
+        reserve = $gameParty._actors.filter(member => !_currentParty.includes(member))
+        let party = _currentParty.filter(member => member != null)
+        $gameParty._actors = party.concat(reserve)
         $gamePlayer.refresh()
         this.popScene();
 
     }
 
-    Scene_CustomFormation.prototype.terminate = function() {
+    Scene_CustomFormation.prototype.onSelectionChange = function () {
+        let index = -1
+        let actor = -1
+        if (this._reserveWindow.active) {
+            index = this._reserveWindow.index();
+            actor = this._reserveWindow.commandSymbol(index)
+        }
+        if (this._partyWindow.active) {
+            index = this._partyWindow.index();
+            actor = this._partyWindow.commandSymbol(index)
+        }
+
+        this._statusWindow.setItem(actor);
+        this._statusWindow.refresh()
+
+    }
+
+
+
+    Scene_CustomFormation.prototype.terminate = function () {
         // Custom behavior
         Scene_Menu.prototype.needsMenuRefresh = true;
         // Cleanup the base scene stuff
@@ -461,8 +492,6 @@
         this._menuWindow.makeCommandList();
         this._menuWindow.refresh()
 
-        // Optional: Draw some text or frame
-        // this._backgroundWindow.drawText("Custom Scene Background", 0, 0, width, "center");
     };
 
 
@@ -471,7 +500,6 @@
         const width = Graphics.boxWidth - wm_size;
         const height = sizey;
         const rect = new Rectangle(0, 0, width, height);
-        // The number of lines here is mostly ignored for large windows
         this._partyWindow = new Window_PartyCommand(rect);
         this._partyWindow.opacity = 255; // Semi-transparent background
         this._partyWindow.y = this.calcWindowHeight(1, true);
@@ -480,9 +508,11 @@
         this._partyWindow.makeCommandList();
 
         this._partyWindow.refresh()
-        // Optional: Draw some text or frame
-        // this._backgroundWindow.drawText("Custom Scene Background", 0, 0, width, "center");
+
     };
+
+
+
 
     Scene_CustomFormation.prototype.createReserveWindow = function () {        // Full screen dimensions
         const width = wm_size;
@@ -499,6 +529,20 @@
     };
 
 
+
+    Scene_CustomFormation.prototype.createStatusWindow = function () {        // Full screen dimensions
+        const width = Graphics.boxWidth - wm_size;
+        const height = Graphics.boxHeight - (sizey + this.calcWindowHeight(1, true));
+        const rect = new Rectangle(0, 0, width, height);
+        // The number of lines here is mostly ignored for large windows
+        this._statusWindow = new Window_PartyStatus(rect);
+        this._statusWindow.opacity = 255; // Semi-transparent background
+        this._statusWindow.y = (sizey + this.calcWindowHeight(1, true))
+        this._statusWindow.x = wm_size
+        this.addWindow(this._statusWindow);
+        this._statusWindow.refresh()
+
+    };
 
     const _Scene_CustomFormation = Scene_CustomFormation.prototype.start;
     Scene_CustomFormation.prototype.start = function () {
@@ -543,7 +587,7 @@
     };
 
 
-    Window_Selectable.prototype.updateOptionSprite = function (index, bitmap, filter) {
+    Window_PartyCommand.prototype.updateOptionSprite = function (index, bitmap, filter) {
         const rect = this.itemRect(index);
         let idx = actor.faceIndex()
         const sx = (idx % 4) * 144;
@@ -585,7 +629,7 @@
     };
 
 
-    Window_Selectable.prototype.updateOptionSpriteText = function (index, filter) {
+    Window_PartyCommand.prototype.updateOptionSpriteText = function (index, filter) {
         const rect = this.itemRect(index);
         let commandName = this.commandName(index);
         const ext = this.commandExt(index)
@@ -719,7 +763,7 @@
                 const filter = new PIXI.filters.ColorMatrixFilter();
                 if (actor._fixed) {
                     //filter.desaturate();
-                   filter.greyscale(0.2); 
+                    filter.greyscale(0.2);
                 }
                 const blurFilter = new PIXI.filters.BlurFilter();
                 this.contents.clearRect(rect.x, rect.y, rect.width, rect.height);
@@ -734,6 +778,15 @@
         }
 
     };
+
+    Window_PartyCommand.prototype.cursorRight = function (wrap) {
+        Window_Command.prototype.cursorRight.call(this, wrap);
+        this.callHandler("cursorMove");
+    }
+    Window_PartyCommand.prototype.cursorLeft = function (wrap) {
+        Window_Command.prototype.cursorLeft.call(this, wrap);
+        this.callHandler("cursorMove");
+    }
 
     Window_Command.prototype.commandExt = function (index) {
         return this._list?.[index]?.ext;
@@ -786,6 +839,15 @@
     };
 
 
+    Window_ReserveCommand.prototype.cursorDown = function (wrap) {
+        Window_Command.prototype.cursorDown.call(this, wrap);
+        this.callHandler("cursorMove");
+    }
+    Window_ReserveCommand.prototype.cursorUp = function (wrap) {
+        Window_Command.prototype.cursorUp.call(this, wrap);
+        this.callHandler("cursorMove");
+    }
+
     Window_Base.prototype.drawReserveName = function (index, x, y, width) {
         const name = this.commandName(index);
         const command = this.commandSymbol(index)
@@ -821,6 +883,93 @@
             this.callCancelHandler();
         }
     };
+
+
+
+    Window_PartyStatus.prototype = Object.create(Window_StatusBase.prototype);
+    Window_PartyStatus.prototype.constructor = Window_PartyStatus;
+    Window_PartyStatus.prototype.initialize = function (rect) {
+
+        Window_StatusBase.prototype.initialize.call(this, rect)
+        this._itemIndex = -1;
+    }
+
+    Window_PartyStatus.prototype.setItem = function (index) {
+        if (this._itemIndex !== index) {
+            this._itemIndex = index;
+            this.refresh();
+        }
+    }
+
+    Window_PartyStatus.prototype.refresh = function () {
+        this.contents.clear();
+        this.hideAdditionalSprites();
+        const actor = $gameActors.actor(this._itemIndex);
+        const rect = this.innerRect;
+        const x = rect.x;
+        const y = rect.y;
+        const width = rect.width;
+        const bottom = y + rect.height;
+
+        if (this._itemIndex == -1) return
+
+        if (actor) {
+            // 1. Actor Face (same size as menu)
+            this.drawActorFace(actor, x + 2, y + 2, 144, 144);
+
+            // 2. Actor Name
+            this.drawActorName(actor, x + 160, y);
+
+            // 3. Actor Level
+            this.drawActorLevel(actor, x + 160, y + 36);
+
+            // 4. HP / MP / TP Gauges (same layout as menu)
+            this.placeBasicGauges(actor, x + 160, y + 72);
+
+            // 5. Class and icons (like menu)
+            this.drawActorClass(actor, x + 160, y + 150);
+            this.drawActorIcons(actor, x + 160, bottom - 32, width);
+            this.drawEquipmentBlock(actor, x + 300, y);
+        }
+        else {
+            this.changeTextColor(ColorManager.textColor(4))
+            this.drawText("--EMPTY--", rect.x, rect.height / 2, rect.width, "center");
+            this.changeTextColor(ColorManager.normalColor())
+            this.hideAdditionalSprites();
+        }
+    }
+
+
+    Window_PartyStatus.prototype.drawEquipmentBlock = function (actor, x, y) {
+        const equips = actor.equips();
+        const slots = actor.equipSlots();
+
+        const lineHeight = this.lineHeight();
+
+        this.changeTextColor(ColorManager.systemColor());
+        this.drawText("Equipment", x, y, 200);
+        this.resetTextColor();
+
+        let dy = y + lineHeight + 4;
+
+        for (let i = 0; i < slots.length; i++) {
+            const slotName = $dataSystem.equipTypes[slots[i]];
+            const item = equips[i];
+
+            // Slot name (like in Equip scene)
+            this.changeTextColor(ColorManager.systemColor());
+            this.drawText(slotName + ":", x, dy, 100);
+
+            // Item name (gray if empty)
+            this.resetTextColor();
+            const name = item ? item.name : "-";
+            this.drawText(name, x + 110, dy, 280);
+
+            dy += lineHeight;
+        }
+    }
+
+
 
     window.Scene_CustomFormation = Scene_CustomFormation;
 
