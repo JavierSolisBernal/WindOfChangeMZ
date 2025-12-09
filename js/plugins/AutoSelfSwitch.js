@@ -186,21 +186,7 @@
 		if(data.DetectionType==1){
 			distance = Math.sqrt(sx*sx + sy*sy);
 		}
-		if(data.DetectionType==2){
-		   if(this.direction()==2||this.direction()==8) 
-		   {
-			 if(sx!=0) return false;
-			 if(this.deltaYFrom($gamePlayer.y)>0) return false
-		   }
-		   if(this.direction()==6||this.direction()==4) 
-		   {
-			 if(sy!=0) return false;
-			 if(this.deltaYFrom($gamePlayer.x)>0) return false
-		   }
-			 
-		  
- 
-		}	
+		 
 	
         switch (data.conditionType) {
             case 1:
