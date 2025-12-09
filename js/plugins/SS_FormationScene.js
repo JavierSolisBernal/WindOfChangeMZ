@@ -197,6 +197,33 @@
         //return this.allMembers().slice(0, this.maxBattleMembers());
     };
 
+    ss_party_maxBattleMembers = Game_Party.prototype.maxBattleMembers
+    Game_Party.prototype.maxBattleMembers = function () {
+        ss_party_maxBattleMembers.call(this)
+        return SP
+
+    };
+
+    SS_Sprite_Actor_setActorHome = Sprite_Actor.prototype.setActorHome
+    Sprite_Actor.prototype.setActorHome = function (index) {
+        SS_Sprite_Actor_setActorHome.call(this, index)
+        let size = SP > 4 ? -6 : 0
+        let extra = (48 + size) * (SP - 4)
+        this.setHome(600 + index * 32, 280 - extra + index * (48));
+    };
+
+    const _Game_Actor_actionStepForward = Game_Actor.prototype.actionStepForward;
+    Game_Actor.prototype.actionStepForward = function () {
+        const stepDistance = 50; // how far forward the actor moves (adjust)
+        this._homeX += stepDistance;
+        _Game_Actor_actionStepForward.call(this);
+        this._homeX -= stepDistance; // reset to original home after step
+    };
+
+
+
+
+
     //GET THE TAGS FROM ACTOR MEMO
     ss_party_Game_Actor_setup = Game_Actor.prototype.setup;
     Game_Actor.prototype.setup = function (actorId) {
@@ -939,6 +966,14 @@
         }
     }
 
+
+    Window_PartyStatus.prototype.placeBasicGauges = function (actor, x, y) {
+        this.placeGauge(actor, "hp", x, y);
+        this.placeGauge(actor, "mp", x, y + this.gaugeLineHeight());
+        if ($dataSystem.optDisplayTp) {
+            this.placeGauge(actor, "tp", x, y + this.gaugeLineHeight() * 2);
+        }
+    };
 
     Window_PartyStatus.prototype.drawEquipmentBlock = function (actor, x, y) {
         const equips = actor.equips();
