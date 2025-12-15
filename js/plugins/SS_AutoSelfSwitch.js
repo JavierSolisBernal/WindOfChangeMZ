@@ -2,6 +2,7 @@
  AutoSelfSwitch.js
 ----------------------------------------------------------------------------
  (C)2021 Triacontane
+ Fork by Squall Seawave
  This software is released under the MIT License.
  http://opensource.org/licenses/mit-license.php
 ----------------------------------------------------------------------------
@@ -202,4 +203,190 @@
                 return distance <= data.playerDistance;
         }
     };
+
+
+const _Sprite_Character_initialize = Sprite_Character.prototype.initialize;
+    Sprite_Character.prototype.initialize = function (character) {
+        _Sprite_Character_initialize.call(this, character);
+        this.event_overlays = []; // Array to store overlay sprites
+    };
+
+
+    Sprite_Character.prototype.addDotOverlay = function (radius = 8, color = 0xff0000, alpha = 255, offsetX = 0, offsetY = 0) {
+        const dot = new PIXI.Graphics();
+        dot.beginFill(color, alpha / 255);
+        dot.drawCircle(0, 0, radius);
+        dot.endFill();
+        dot.x = offsetX * $gameMap.tileWidth();
+        dot.y = offsetY * $gameMap.tileHeight();
+        dot.y -= $gameMap.tileHeight() / 2
+        this.addChild(dot);
+        this._overlays.push(dot);
+    };
+
+    Sprite_Character.prototype.removeDotOverlay = function () {
+        for (let i = this._overlays.length - 1; i >= 0; i--) {
+            const overlay = this._overlays[i];
+            this.removeChild(overlay);
+            this._overlays.splice(i, 1);
+        }
+    };
+
+
+    // Hook into Sprite_Character initialize
+    const SS_Sprite_Character_initialize = Sprite_Character.prototype.initialize;
+    Sprite_Character.prototype.initialize = function (character) {
+        SS_Sprite_Character_initialize.call(this, character);
+        this._overlays = [];
+
+        // Auto-add overlay if event has note tag
+        if (character._eventId) {
+
+            let note = $gameMap.event(character._eventId).event().note
+            let dataList = []
+            dataList = param.list.map((item) => { return item?._parameter?.noteTag });
+
+            const contains = dataList.some(item => note.includes(item));
+            dataList = param.list.find((item) => { return note.contains(item?._parameter?.noteTag || "") });
+            if (!contains) return
+            this.removeDotOverlay()
+            this.createfieldofVision(character, dataList?._parameter)
+
+        }
+    };
+
+    const _Sprite_Character_update = Sprite_Character.prototype.update;
+    Sprite_Character.prototype.update = function () {
+        _Sprite_Character_update.call(this);
+
+        // Only for events with overlays
+        if (this._overlays && this._overlays.length > 0) {
+            const event = this._character;
+            if (!event._lastDirection) event._lastDirection = event.direction();
+            if (!event._lastX) event._lastX = event.x;
+            if (!event._lastY) event._lastY = event.y;
+            if (event._lastDirection !== event.direction()) {
+                this.removeDotOverlay()
+                // Update last direction
+                let note = $gameMap.event(this._character._eventId).event().note
+                let dataList = []
+                dataList = param.list.find((item) => { return note.contains(item?._parameter?.noteTag || "") });
+                this.createfieldofVision(this._character, dataList?._parameter)
+                event._lastDirection = event.direction();
+            }
+            if (event._lastX !== event.x) {
+                this.removeDotOverlay()
+                // Update last direction
+                let note = $gameMap.event(this._character._eventId).event().note
+                let dataList = []
+                dataList = param.list.find((item) => { return note.contains(item?._parameter?.noteTag || "") });
+                this.createfieldofVision(this._character, dataList?._parameter)
+                this._character.isValidAutoSelfSwitchList(dataList?._parameter)
+                event._lastX = event.x;
+            }
+            if (event._lastY !== event.y) {
+                this.removeDotOverlay()
+                // Update last direction
+                let note = $gameMap.event(this._character._eventId).event().note
+                let dataList = []
+                dataList = param.list.find((item) => { return note.contains(item?._parameter?.noteTag || "") });
+                this.createfieldofVision(this._character, dataList?._parameter)
+                event._lastY = event.y;
+            }
+
+
+        }
+    };
+
+    Sprite_Character.prototype.createfieldofVision = function (event, data) {
+        const sx = Math.abs(event.deltaXFrom($gamePlayer.x));
+        const sy = Math.abs(event.deltaYFrom($gamePlayer.y));
+        const originX = event.x
+        const originY = event.y
+        if (!data) return
+
+        if (data.DetectionType == 0) {
+            this.ManhattanVision(event, data)
+        }
+
+
+
+    }
+
+
+    Sprite_Character.prototype.ManhattanVision = function (event, data) {
+        const maxDistance = data.playerDistance
+
+
+        const startX = event.x;
+        const startY = event.y;
+
+        const visited = new Set();
+        const queue = [];
+        const overlays = [];
+
+        const key = (x, y) => `${x},${y}`;
+
+        // Start from event tile
+        queue.push({ x: startX, y: startY, dist: 0 });
+        visited.add(key(startX, startY));
+
+        // BFS directions
+        const dirs = [
+            { dx: 1, dy: 0 },
+            { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 },
+            { dx: 0, dy: -1 }
+        ];
+
+        while (queue.length > 0) {
+            const node = queue.shift();
+
+            // skip origin if you don't want the dot on top of event
+            if (!(node.x === startX && node.y === startY)) {
+                // draw a dot
+                const dx = node.x - startX;
+                const dy = node.y - startY;
+
+                const px = dx * $gameMap.tileWidth() + $gameMap.tileWidth() / 2;
+                const py = dy * $gameMap.tileHeight() + $gameMap.tileHeight() / 2;
+
+
+                this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+            }
+
+            // Expand further if distance allows
+            if (node.dist < maxDistance) {
+                for (const d of dirs) {
+                    const nx = node.x + d.dx;
+                    const ny = node.y + d.dy;
+
+                    // valid tile?
+                    if (!$gameMap.isValid(nx, ny)) continue;
+
+                    // already checked?
+                    const k = key(nx, ny);
+                    if (visited.has(k)) continue;
+
+                    // BLOCKED REGION: DO NOT add or continue past it
+                    if ([60].includes($gameMap.regionId(nx, ny))) continue;
+
+                    // mark visited
+                    visited.add(k);
+
+                    // enqueue with updated distance
+                    queue.push({
+                        x: nx,
+                        y: ny,
+                        dist: node.dist + 1
+                    });
+                }
+            }
+        }
+
+        this._rangeOverlays = overlays;
+    };
+
+
+
 })();
