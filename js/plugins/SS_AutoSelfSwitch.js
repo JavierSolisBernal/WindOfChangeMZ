@@ -145,25 +145,26 @@
     if (!param.list || !Array.isArray(param.list)) {
         return;
     }
+    const RegionBlock = [60]
 
     const _Game_Event_initialize = Game_Event.prototype.initialize;
-    Game_Event.prototype.initialize = function() {
+    Game_Event.prototype.initialize = function () {
         _Game_Event_initialize.apply(this, arguments);
         const dataList = param.list.filter(item => PluginManagerEx.findMetaValue(this.event(), item.noteTag));
         this._autoSelfSwitchIndexList = dataList.map(data => param.list.indexOf(data));
     };
 
     const _Game_Event_update = Game_Event.prototype.update;
-    Game_Event.prototype.update = function() {
+    Game_Event.prototype.update = function () {
         _Game_Event_update.apply(this, arguments);
         this.updateAutoSelfSwitchList();
     };
 
-    Game_Event.prototype.findAutoSelfSwitchList = function() {
+    Game_Event.prototype.findAutoSelfSwitchList = function () {
         return this._autoSelfSwitchIndexList.map(index => param.list[index]);
     };
 
-    Game_Event.prototype.updateAutoSelfSwitchList = function() {
+    Game_Event.prototype.updateAutoSelfSwitchList = function () {
         this.findAutoSelfSwitchList().forEach(data => {
             if (data.switchId && !$gameSwitches.value(data.switchId)) {
                 return;
@@ -176,7 +177,7 @@
         });
     };
 
-    Game_Event.prototype.controlSelfSwitch = function(type, value) {
+    Game_Event.prototype.controlSelfSwitch = function (type, value) {
         const key = [$gameMap.mapId(), this.eventId(), type];
         const prevValue = $gameSelfSwitches.value(key);
         if (prevValue !== value) {
@@ -184,7 +185,7 @@
         }
     };
 
-    Game_Event.prototype.isValidAutoSelfSwitchList = function(data) {
+    Game_Event.prototype.isValidAutoSelfSwitchList = function (data) {
         const sx = Math.abs(this.deltaXFrom($gamePlayer.x));
         const sy = Math.abs(this.deltaYFrom($gamePlayer.y));
         const distance = sx + sy;
@@ -205,7 +206,7 @@
     };
 
 
-const _Sprite_Character_initialize = Sprite_Character.prototype.initialize;
+    const _Sprite_Character_initialize = Sprite_Character.prototype.initialize;
     Sprite_Character.prototype.initialize = function (character) {
         _Sprite_Character_initialize.call(this, character);
         this.event_overlays = []; // Array to store overlay sprites
@@ -309,10 +310,81 @@ const _Sprite_Character_initialize = Sprite_Character.prototype.initialize;
             this.ManhattanVision(event, data)
         }
 
+        if (data.DetectionType == 1) {
+            this.RadialVision(event, data)
+        }
 
+        if (data.DetectionType == 4) {
+            this.ConeVision(event, data)
+        }
 
     }
 
+
+    Sprite_Character.prototype.getLine = function (x0, y0, x1, y1) {
+        const tiles = [];
+        let dx = Math.abs(x1 - x0);
+        let dy = Math.abs(y1 - y0);
+        let sx = x0 < x1 ? 1 : -1;
+        let sy = y0 < y1 ? 1 : -1;
+        let err = dx - dy;
+
+        let x = x0;
+        let y = y0;
+
+        while (true) {
+            tiles.push({ x, y }); // Add current tile
+            if (x === x1 && y === y1) break;
+            let e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x += sx; }
+            if (e2 < dx) { err += dx; y += sy; }
+        }
+
+        return tiles;
+    };
+
+    Sprite_Character.prototype.RadialVision = function (event, data) {
+        const maxDistance = data.playerDistance
+        const startX = event.x;
+        const startY = event.y;
+        const pos = []
+        let x = 0;
+        let y = 0;
+
+
+        for (x = -Math.floor(maxDistance); x <= maxDistance; x++) {
+            for (y = -Math.floor(maxDistance); y <= maxDistance; y++) {
+                const distance = Math.sqrt(x * x + y * y); // Euclidean distance
+                if (distance > maxDistance) continue;     // Skip tiles outside circle
+                const targetX = startX + x;
+                const targetY = startY + y;
+                const lineTiles = this.getLine(startX, startY, targetX, targetY);
+
+                let blocked = false;
+                for (const tile of lineTiles) {
+                    const regionId = $gameMap.regionId(tile.x, tile.y);
+                    if (RegionBlock.includes(regionId)) {
+                        blocked = true;
+                        break; // stop this line
+                    }
+                }
+                if (!blocked) {
+                    pos.push({ x: startX + x, y: startY + y });
+                    this.addDotOverlay(8, 0xff0000, 168, x, y);
+                }
+            }
+        }
+
+        pos.push({ x: startX, y: startY });
+        const unique = [
+            ...new Map(pos.map(obj => [`${obj.x},${obj.y}`, obj])).values()
+        ];
+        unique.sort((a, b) => a.y - b.y || a.x - b.x);
+
+        event._valid = unique
+        console.log(unique)
+
+    }
 
     Sprite_Character.prototype.ManhattanVision = function (event, data) {
         const maxDistance = data.playerDistance
@@ -324,7 +396,7 @@ const _Sprite_Character_initialize = Sprite_Character.prototype.initialize;
         const visited = new Set();
         const queue = [];
         const overlays = [];
-
+        const pos = []
         const key = (x, y) => `${x},${y}`;
 
         // Start from event tile
@@ -348,11 +420,39 @@ const _Sprite_Character_initialize = Sprite_Character.prototype.initialize;
                 const dx = node.x - startX;
                 const dy = node.y - startY;
 
-                const px = dx * $gameMap.tileWidth() + $gameMap.tileWidth() / 2;
-                const py = dy * $gameMap.tileHeight() + $gameMap.tileHeight() / 2;
+                let dist = Math.abs(dx) + Math.abs(dy)
+
+                switch (data.conditionType) {
+                    case 1:
+                        if (dist <= data.playerDistance) {
+                            pos.push({ x: startX + dx, y: startY + dy });
+                            this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                        }
+                    case 2:
+                        if (dist >= data.playerDistance) {
+                            pos.push({ x: startX + dx, y: startY + dy });
+                            this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                        }
+                    case 3:
+                        if (dist > data.playerDistance) {
+                            pos.push({ x: startX + dx, y: startY + dy });
+                            this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                        }
+                    case 4:
+                        if (dist === data.playerDistance) {
+                            pos.push({ x: startX + dx, y: startY + dy });
+                            this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                        }
+                    case 5:
+                        pos.push({ x: startX + dx, y: startY + dy });
+                        this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                    default:
+                        pos.push({ x: startX + dx, y: startY + dy });
+                        this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                }
 
 
-                this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+
             }
 
             // Expand further if distance allows
@@ -369,7 +469,9 @@ const _Sprite_Character_initialize = Sprite_Character.prototype.initialize;
                     if (visited.has(k)) continue;
 
                     // BLOCKED REGION: DO NOT add or continue past it
-                    if ([60].includes($gameMap.regionId(nx, ny))) continue;
+                    if (RegionBlock.includes($gameMap.regionId(nx, ny))) continue;
+
+
 
                     // mark visited
                     visited.add(k);
@@ -382,9 +484,104 @@ const _Sprite_Character_initialize = Sprite_Character.prototype.initialize;
                     });
                 }
             }
+            pos.push({ x: startX, y: startY });
+            const unique = [
+                ...new Map(pos.map(obj => [`${obj.x},${obj.y}`, obj])).values()
+            ];
+            unique.sort((a, b) => a.y - b.y || a.x - b.x);
+
+            event._valid = unique
         }
 
         this._rangeOverlays = overlays;
+    };
+
+
+    Sprite_Character.prototype.ConeVision = function (event, data) {
+        const startX = event.x;
+        const startY = event.y;
+        const maxDistance = data.playerDistance;
+        const pos = [];
+        const blockRegion = data.blockRegion || 1;
+
+        const dir = event.direction(); // 2=down,4=left,6=right,8=up
+        let lastWidth = 0; // Track previous row width to remove duplicates
+
+        // Loop from 0 to maxDistance to include the event as the tip
+        for (let d = 0; d <= maxDistance; d++) {
+            // Row width grows with distance, tip width = 1
+            const baseWidth = d * 2 + 1; // d=0 → width=1 (tip)
+            if (baseWidth === lastWidth) continue; // remove duplicate row sizes
+            lastWidth = baseWidth;
+
+            const halfWidth = Math.floor(baseWidth / 2);
+
+            for (let offset = -halfWidth; offset <= halfWidth; offset++) {
+                let x = startX;
+                let y = startY;
+
+                switch (dir) {
+                    case 2: // down
+                        x += offset;
+                        y += d;
+                        break;
+                    case 8: // up
+                        x += offset;
+                        y -= d;
+                        break;
+                    case 6: // right
+                        x += d;
+                        y += offset;
+                        break;
+                    case 4: // left
+                        x -= d;
+                        y += offset;
+                        break;
+                }
+
+                // Stop the ray if a blocking region is hit
+                const line = this.getLine(startX, startY, x, y);
+                let blocked = false;
+                for (const tile of line) {
+                      
+                    if (RegionBlock.includes($gameMap.regionId(tile.x, tile.y))) {
+                        blocked = true;
+                        break;
+                    }
+                }
+                if (blocked) continue;
+
+                pos.push({ x, y });
+                if(lastWidth>1 )
+                this.addDotOverlay(8, 0xff0000, 168, x - startX, y - startY);
+            }
+        }
+
+        pos.push({ x: startX, y: startY });
+        const unique = [
+            ...new Map(pos.map(obj => [`${obj.x},${obj.y}`, obj])).values()
+        ];
+        unique.sort((a, b) => a.y - b.y || a.x - b.x);
+
+        event._valid = unique
+    };
+
+
+
+
+
+    Game_Event.prototype.isValidAutoSelfSwitchList = function (data) {
+        const sx = Math.abs(this.deltaXFrom($gamePlayer.x));
+        const sy = Math.abs(this.deltaYFrom($gamePlayer.y));
+        const distance = sx + sy;
+
+        if (!data) return
+        //if (includesdata.DetectionType == 0) {
+        return this._valid.some(p => p.x === $gamePlayer.x && p.y === $gamePlayer.y)
+        //}
+
+
+
     };
 
 
