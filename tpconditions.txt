@@ -1,0 +1,52 @@
+Stoic	Raise tp by guarding or receiving damage from attacks
+Warrior	Raise tp by attacking and dealing hp damage
+Breaker Raise tp whenever user deals mp damage, receives mp damage or ally receives Mp damage
+Slayer Raise tp whenever an enemy is killed
+Coward Raise tp whenever your party scapes from battle or lose a battle
+Caster Raise TP whenever user ends a turn with low mp
+Sufferer Raise TP wheneve an user receives a status effect from a enemy
+Loner Raise TP every turn end when the user is the last member alive
+Comrade	Raise tp whenever allies take damage
+Healer Raise tp by healing Hp
+Booster Raise tp whenever user recovers MP for an ally
+Avenger Raise tp whenever an ally is killer
+Daredevil Raise tp whenever an user ends a turn with low HP
+Tactician Raise tp whenever an user adds an status effect to a foe
+Dancer Raise tp whenever an user evades an attack
+
+
+max tp=100
+100 * u.trg
+take hp dmg
+deal hp dmg
+ally take hp dag
+ally deal hp dag
+take mp dmg
+deal mp dmg
+ally take mp dag
+ally deal mp dag
+deal state
+gain state
+kill ally 
+kill enemy
+win battle
+flee battle
+lose battle
+crisis hp
+crisis mp
+only member
+evasion
+steps
+
+
+steps
+if (flag === undefined) flag = true;
+
+if (total_steps % steps === 0 && flag) {
+  tp += 1;
+  flag = false;
+}
+
+if (total_steps % steps !== 0) {
+  flag = true;
+}
