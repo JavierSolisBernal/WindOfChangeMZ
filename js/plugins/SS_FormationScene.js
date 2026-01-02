@@ -8,7 +8,13 @@
  * @author Squall_seawave
  * @version 0.1
  * @help
- * <fixed> if this it is it put an actor fixed in the position
+ * State Notetags:
+ * <fixed> This put an actor fixed in current positionposition
+ * Plugins commands:
+ * SetFixedActor this fix an actor in a position in the party 
+ * ReleaseFixedActor Release the fixed position
+ * ChangeRequiredtoActor change if an actor is required or not, the position is not fixed.
+ * 
  * @param size
  * @text Size of party
  * @type select
@@ -54,7 +60,7 @@
  * @default 0
  * 
  * @command ChangeRequiredtoActor
- * @text Add required
+ * @text Change required
  * @desc Change the status of the required actor
  *
  * @arg actorId
@@ -955,7 +961,8 @@
 
             // 5. Class and icons (like menu)
             this.drawActorClass(actor, x + 160, y + 150);
-            this.drawActorIcons(actor, x + 160, bottom - 32, width);
+            const index=32*3
+            this.drawActorIcons(actor, x + 160, bottom - 32-index, width);
             this.drawEquipmentBlock(actor, x + 300, y);
         }
         else {
