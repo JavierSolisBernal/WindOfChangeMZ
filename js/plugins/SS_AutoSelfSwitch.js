@@ -23,6 +23,13 @@
  * @orderAfter PluginCommonBase
  * @author トリアコンタン
  *
+ * @param RegionBlock
+ * @text RegionBlock
+ * @desc Add the id of the regions that block the line of the sensor
+ * @type number[]
+ * @default [1]
+ * 
+ * 
  * @param list
  * @text Condition List
  * @desc A list of conditions that will cause the self-switch to fluctuate.
@@ -54,6 +61,8 @@
  * Terms of Use:
  * You may modify and redistribute this plugin without permission from the author, and there are no restrictions on its use (commercial, R18, etc.).
  * This plugin is now yours.
+
+ * 
  */
 
 /*~struct~Condition: 
@@ -142,10 +151,15 @@
     'use strict';
     const script = document.currentScript;
     const param = PluginManagerEx.createParameter(script);
+    const params = PluginManager.parameters("SS_AutoSelfSwitch");
     if (!param.list || !Array.isArray(param.list)) {
         return;
     }
-    const RegionBlock = [60]
+ 
+ 
+    const RegionBlock = param.RegionBlock||[1]
+
+ 
 
     const _Game_Event_initialize = Game_Event.prototype.initialize;
     Game_Event.prototype.initialize = function () {
@@ -213,7 +227,8 @@
     };
 
 
-    Sprite_Character.prototype.addDotOverlay = function (radius = 8, color = 0xff0000, alpha = 255, offsetX = 0, offsetY = 0) {
+    Sprite_Character.prototype.addDotOverlay = function (radius = 8, color = 0xff0000, alpha = 255, offsetX = 0, offsetY = 0, active=false) {
+        if(!active) return
         const dot = new PIXI.Graphics();
         dot.beginFill(color, alpha / 255);
         dot.drawCircle(0, 0, radius);
@@ -306,6 +321,8 @@
         const originY = event.y
         if (!data) return
 
+       
+
         if (data.DetectionType == 0) {
             this.ManhattanVision(event, data)
         }
@@ -370,7 +387,7 @@
                 }
                 if (!blocked) {
                     pos.push({ x: startX + x, y: startY + y });
-                    this.addDotOverlay(8, 0xff0000, 168, x, y);
+                    this.addDotOverlay(8, 0xff0000, 168, x, y, data.Dots);
                 }
             }
         }
@@ -426,29 +443,29 @@
                     case 1:
                         if (dist <= data.playerDistance) {
                             pos.push({ x: startX + dx, y: startY + dy });
-                            this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                            this.addDotOverlay(8, 0xff0000, 168, dx, dy, data.Dots);
                         }
                     case 2:
                         if (dist >= data.playerDistance) {
                             pos.push({ x: startX + dx, y: startY + dy });
-                            this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                            this.addDotOverlay(8, 0xff0000, 168, dx, dy, data.Dots);
                         }
                     case 3:
                         if (dist > data.playerDistance) {
                             pos.push({ x: startX + dx, y: startY + dy });
-                            this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                            this.addDotOverlay(8, 0xff0000, 168, dx, dy, data.Dots);
                         }
                     case 4:
                         if (dist === data.playerDistance) {
                             pos.push({ x: startX + dx, y: startY + dy });
-                            this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                            this.addDotOverlay(8, 0xff0000, 168, dx, dy, data.Dots);
                         }
                     case 5:
                         pos.push({ x: startX + dx, y: startY + dy });
-                        this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                        this.addDotOverlay(8, 0xff0000, 168, dx, dy, data.Dots);
                     default:
                         pos.push({ x: startX + dx, y: startY + dy });
-                        this.addDotOverlay(8, 0xff0000, 168, dx, dy);
+                        this.addDotOverlay(8, 0xff0000, 168, dx, dy, data.Dots);
                 }
 
 
@@ -553,7 +570,7 @@
 
                 pos.push({ x, y });
                 if(lastWidth>1 )
-                this.addDotOverlay(8, 0xff0000, 168, x - startX, y - startY);
+                this.addDotOverlay(8, 0xff0000, 168, x - startX, y - startY, data.Dots);
             }
         }
 
