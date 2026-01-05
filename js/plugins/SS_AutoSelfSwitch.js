@@ -157,7 +157,7 @@
     }
  
  
-    const RegionBlock = param.RegionBlock||[1]
+    const  BlockGlobal = param.RegionBlock||[1]
 
  
 
@@ -367,6 +367,7 @@
         const pos = []
         let x = 0;
         let y = 0;
+        let RegionBlock = [...BlockGlobal]; 
 
 
         for (x = -Math.floor(maxDistance); x <= maxDistance; x++) {
@@ -385,7 +386,9 @@
                         break; // stop this line
                     }
                 }
+                if(x==0 && y==0) continue
                 if (!blocked) {
+                    
                     pos.push({ x: startX + x, y: startY + y });
                     this.addDotOverlay(8, 0xff0000, 168, x, y, data.Dots);
                 }
@@ -399,8 +402,7 @@
         unique.sort((a, b) => a.y - b.y || a.x - b.x);
 
         event._valid = unique
-        console.log(unique)
-
+ 
     }
 
     Sprite_Character.prototype.ManhattanVision = function (event, data) {
@@ -415,7 +417,7 @@
         const overlays = [];
         const pos = []
         const key = (x, y) => `${x},${y}`;
-
+        let RegionBlock = [...BlockGlobal]; 
         // Start from event tile
         queue.push({ x: startX, y: startY, dist: 0 });
         visited.add(key(startX, startY));
@@ -519,7 +521,7 @@
         const startY = event.y;
         const maxDistance = data.playerDistance;
         const pos = [];
-        const blockRegion = data.blockRegion || 1;
+        let RegionBlock = [...BlockGlobal]; 
 
         const dir = event.direction(); // 2=down,4=left,6=right,8=up
         let lastWidth = 0; // Track previous row width to remove duplicates
