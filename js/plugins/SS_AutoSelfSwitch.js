@@ -144,7 +144,11 @@
  * @value 3
  * @option Cone
  * @value 4
- 
+ * @param RegionBlock 
+ * @text RegionBlock
+ * @desc Add the id of the regions that block the line of the sensor
+ * @type number[]
+ * @default [] 
  */
 
 (() => {
@@ -368,7 +372,7 @@
         let x = 0;
         let y = 0;
         let RegionBlock = [...BlockGlobal]; 
-
+        RegionBlock=RegionBlock.concat(data.RegionBlock||[])
 
         for (x = -Math.floor(maxDistance); x <= maxDistance; x++) {
             for (y = -Math.floor(maxDistance); y <= maxDistance; y++) {
@@ -418,6 +422,7 @@
         const pos = []
         const key = (x, y) => `${x},${y}`;
         let RegionBlock = [...BlockGlobal]; 
+        RegionBlock=RegionBlock.concat(data.RegionBlock||[])
         // Start from event tile
         queue.push({ x: startX, y: startY, dist: 0 });
         visited.add(key(startX, startY));
@@ -522,7 +527,7 @@
         const maxDistance = data.playerDistance;
         const pos = [];
         let RegionBlock = [...BlockGlobal]; 
-
+        RegionBlock=RegionBlock.concat(data.RegionBlock||[])
         const dir = event.direction(); // 2=down,4=left,6=right,8=up
         let lastWidth = 0; // Track previous row width to remove duplicates
 
