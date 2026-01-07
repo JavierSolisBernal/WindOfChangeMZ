@@ -159,11 +159,11 @@
     if (!param.list || !Array.isArray(param.list)) {
         return;
     }
- 
- 
-    const  BlockGlobal = param.RegionBlock||[1]
 
- 
+
+    const BlockGlobal = param.RegionBlock || [1]
+
+
 
     const _Game_Event_initialize = Game_Event.prototype.initialize;
     Game_Event.prototype.initialize = function () {
@@ -231,8 +231,8 @@
     };
 
 
-    Sprite_Character.prototype.addDotOverlay = function (radius = 8, color = 0xff0000, alpha = 255, offsetX = 0, offsetY = 0, active=false) {
-        if(!active) return
+    Sprite_Character.prototype.addDotOverlay = function (radius = 8, color = 0xff0000, alpha = 255, offsetX = 0, offsetY = 0, active = false) {
+        if (!active) return
         const dot = new PIXI.Graphics();
         dot.beginFill(color, alpha / 255);
         dot.drawCircle(0, 0, radius);
@@ -325,7 +325,7 @@
         const originY = event.y
         if (!data) return
 
-       
+
 
         if (data.DetectionType == 0) {
             this.ManhattanVision(event, data)
@@ -371,8 +371,8 @@
         const pos = []
         let x = 0;
         let y = 0;
-        let RegionBlock = [...BlockGlobal]; 
-        RegionBlock=RegionBlock.concat(data.RegionBlock||[])
+        let RegionBlock = [...BlockGlobal];
+        RegionBlock = RegionBlock.concat(data.RegionBlock || [])
 
         for (x = -Math.floor(maxDistance); x <= maxDistance; x++) {
             for (y = -Math.floor(maxDistance); y <= maxDistance; y++) {
@@ -390,9 +390,9 @@
                         break; // stop this line
                     }
                 }
-                if(x==0 && y==0) continue
+                if (x == 0 && y == 0) continue
                 if (!blocked) {
-                    
+
                     pos.push({ x: startX + x, y: startY + y });
                     this.addDotOverlay(8, 0xff0000, 168, x, y, data.Dots);
                 }
@@ -406,7 +406,7 @@
         unique.sort((a, b) => a.y - b.y || a.x - b.x);
 
         event._valid = unique
- 
+
     }
 
     Sprite_Character.prototype.ManhattanVision = function (event, data) {
@@ -421,8 +421,8 @@
         const overlays = [];
         const pos = []
         const key = (x, y) => `${x},${y}`;
-        let RegionBlock = [...BlockGlobal]; 
-        RegionBlock=RegionBlock.concat(data.RegionBlock||[])
+        let RegionBlock = [...BlockGlobal];
+        RegionBlock = RegionBlock.concat(data.RegionBlock || [])
         // Start from event tile
         queue.push({ x: startX, y: startY, dist: 0 });
         visited.add(key(startX, startY));
@@ -521,13 +521,15 @@
     };
 
 
-    Sprite_Character.prototype.ConeVision = function (event, data) {
+     
+
+    Sprite_Character.prototype.ConeVisionbackup = function (event, data) {
         const startX = event.x;
         const startY = event.y;
         const maxDistance = data.playerDistance;
         const pos = [];
-        let RegionBlock = [...BlockGlobal]; 
-        RegionBlock=RegionBlock.concat(data.RegionBlock||[])
+        let RegionBlock = [...BlockGlobal];
+        RegionBlock = RegionBlock.concat(data.RegionBlock || [])
         const dir = event.direction(); // 2=down,4=left,6=right,8=up
         let lastWidth = 0; // Track previous row width to remove duplicates
 
@@ -567,7 +569,7 @@
                 const line = this.getLine(startX, startY, x, y);
                 let blocked = false;
                 for (const tile of line) {
-                      
+
                     if (RegionBlock.includes($gameMap.regionId(tile.x, tile.y))) {
                         blocked = true;
                         break;
@@ -576,8 +578,8 @@
                 if (blocked) continue;
 
                 pos.push({ x, y });
-                if(lastWidth>1 )
-                this.addDotOverlay(8, 0xff0000, 168, x - startX, y - startY, data.Dots);
+                if (lastWidth > 1)
+                    this.addDotOverlay(8, 0xff0000, 168, x - startX, y - startY, data.Dots);
             }
         }
 
@@ -589,7 +591,6 @@
 
         event._valid = unique
     };
-
 
 
 
