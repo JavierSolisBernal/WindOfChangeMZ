@@ -280,21 +280,24 @@
         _Sprite_Character_update.call(this);
 
         // Only for events with overlays
+        const event = this._character;
         if (this._overlays && this._overlays.length > 0) {
-            const event = this._character;
+            
             if (!event._lastDirection) event._lastDirection = event.direction();
             if (!event._lastX) event._lastX = event.x;
             if (!event._lastY) event._lastY = event.y;
-            if (event._lastDirection !== event.direction()) {
+            if (event && event._lastDirection !== event.direction()) {
                 this.removeDotOverlay()
                 // Update last direction
+            
                 let note = $gameMap.event(this._character._eventId).event().note
                 let dataList = []
+             
                 dataList = param.list.find((item) => { return note.contains(item?._parameter?.noteTag || "") });
                 this.createfieldofVision(this._character, dataList?._parameter)
                 event._lastDirection = event.direction();
             }
-            if (event._lastX !== event.x) {
+            if (event &&  event._lastX !== event.x) {
                 this.removeDotOverlay()
                 // Update last direction
                 let note = $gameMap.event(this._character._eventId).event().note
@@ -304,7 +307,7 @@
                 this._character.isValidAutoSelfSwitchList(dataList?._parameter)
                 event._lastX = event.x;
             }
-            if (event._lastY !== event.y) {
+            if (event &&  event._lastY !== event.y) {
                 this.removeDotOverlay()
                 // Update last direction
                 let note = $gameMap.event(this._character._eventId).event().note
@@ -313,7 +316,37 @@
                 this.createfieldofVision(this._character, dataList?._parameter)
                 event._lastY = event.y;
             }
-
+        }
+        else{
+            if (event && event._lastDirection !== event.direction() && $gameMap.event(this._character._eventId)) {
+                 
+                // Update last direction
+                let note = $gameMap.event(this._character._eventId).event().note
+                let dataList = []
+             
+                dataList = param.list.find((item) => { return note.contains(item?._parameter?.noteTag || "") });
+                this.createfieldofVision(this._character, dataList?._parameter)
+                event._lastDirection = event.direction();
+            }
+            if (event &&  event._lastX !== event.x && $gameMap.event(this._character._eventId)) {
+                
+                // Update last direction
+                let note = $gameMap.event(this._character._eventId).event().note
+                let dataList = []
+                dataList = param.list.find((item) => { return note.contains(item?._parameter?.noteTag || "") });
+                this.createfieldofVision(this._character, dataList?._parameter)
+                this._character.isValidAutoSelfSwitchList(dataList?._parameter)
+                event._lastX = event.x;
+            }
+            if (event &&  event._lastY !== event.y && $gameMap.event(this._character._eventId)) {
+                
+                // Update last direction
+                let note = $gameMap.event(this._character._eventId).event().note
+                let dataList = []
+                dataList = param.list.find((item) => { return note.contains(item?._parameter?.noteTag || "") });
+                this.createfieldofVision(this._character, dataList?._parameter)
+                event._lastY = event.y;
+            }
 
         }
     };
@@ -323,16 +356,20 @@
         const sy = Math.abs(event.deltaYFrom($gamePlayer.y));
         const originX = event.x
         const originY = event.y
-        if (!data) return
-
-
-
+         if (!data) return
         if (data.DetectionType == 0) {
             this.ManhattanVision(event, data)
         }
 
         if (data.DetectionType == 1) {
             this.RadialVision(event, data)
+        }
+        if (data.DetectionType == 2) {
+            this.ConeVision(event, data)
+        }
+
+        if (data.DetectionType == 3) {
+            this.ConeVision(event, data)
         }
 
         if (data.DetectionType == 4) {
