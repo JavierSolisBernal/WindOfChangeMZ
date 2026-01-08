@@ -417,7 +417,7 @@
         const startY = event.y;
 
         const visited = new Set();
-        const queue = [];
+        const queue = [];  
         const overlays = [];
         const pos = []
         const key = (x, y) => `${x},${y}`;
@@ -521,7 +521,76 @@
     };
 
 
-     
+     Sprite_Character.prototype.ConeVision = function (event, data) {
+        const startX = event.x;
+        const startY = event.y;
+        const maxDistance = data.playerDistance;
+        const pos = [];
+        let RegionBlock = [...BlockGlobal];
+        RegionBlock = RegionBlock.concat(data.RegionBlock || [])
+        const dir = event.direction(); // 2=down,4=left,6=right,8=up
+        let lastWidth = 0; // Track previous row width to remove duplicates
+
+        // Loop from 0 to maxDistance to include the event as the tip
+        for (let d = 0; d <= maxDistance; d++) {
+            // Row width grows with distance, tip width = 1
+            const baseWidth = d * 2 + 1; // d=0 → width=1 (tip)
+            if (baseWidth === lastWidth) continue; // remove duplicate row sizes
+            lastWidth = baseWidth;
+
+            const halfWidth = Math.floor(baseWidth / 2);
+
+            for (let offset = -halfWidth; offset <= halfWidth; offset++) {
+                let x = startX;
+                let y = startY;
+
+                switch (dir) {
+                    case 2: // down
+                        x += offset;
+                        y += d;
+                        break;
+                    case 8: // up
+                        x += offset;
+                        y -= d;
+                        break;
+                    case 6: // right
+                        x += d;
+                        y += offset;
+                        break;
+                    case 4: // left
+                        x -= d;
+                        y += offset;
+                        break;
+                }
+
+                // Stop the ray if a blocking region is hit
+                const line = this.getLine(startX, startY, x, y);
+                let blocked = false;
+                for (const tile of line) {
+
+                    if (RegionBlock.includes($gameMap.regionId(tile.x, tile.y))) {
+                        blocked = true;
+                        break;
+                    }
+                }
+                if (blocked) continue;
+
+                pos.push({ x, y });
+                if (lastWidth > 1)
+                    this.addDotOverlay(8, 0xff0000, 168, x - startX, y - startY, data.Dots);
+            }
+        }
+
+        pos.push({ x: startX, y: startY });
+        const unique = [
+            ...new Map(pos.map(obj => [`${obj.x},${obj.y}`, obj])).values()
+        ];
+        unique.sort((a, b) => a.y - b.y || a.x - b.x);
+
+        event._valid = unique
+    };
+
+
 
     Sprite_Character.prototype.ConeVisionbackup = function (event, data) {
         const startX = event.x;

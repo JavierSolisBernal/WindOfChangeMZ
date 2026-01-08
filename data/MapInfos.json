@@ -2,5 +2,5 @@
 null,
 {"id":1,"expanded":true,"name":"MAP001","order":1,"parentId":0,"scrollX":593.4,"scrollY":320.4},
 {"id":2,"expanded":false,"name":"MAP002","order":2,"parentId":1,"scrollX":593.4,"scrollY":320.4,"quick":false},
-{"id":3,"expanded":true,"name":"MAP003","order":3,"parentId":0,"scrollX":583.8,"scrollY":519.6}
+{"id":3,"expanded":true,"name":"MAP003","order":3,"parentId":0,"scrollX":583.8,"scrollY":608.4}
 ]
