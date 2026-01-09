@@ -1208,6 +1208,19 @@
 
     };
 
+
+Game_Map.prototype.tileInfo = function (x, y) {
+    return {
+        x,
+        y,
+        regionId: this.regionId(x, y),
+        terrainTag: this.terrainTag(x, y),
+        events: this.eventsXy(x, y),
+        hasPlayer: $gamePlayer.pos(x, y),
+        passable: this.isPassable(x, y, 2)
+    };
+};
+
 */
 
 })();
