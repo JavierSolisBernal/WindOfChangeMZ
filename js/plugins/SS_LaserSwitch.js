@@ -1,5 +1,5 @@
 /*=============================================================================
- AutoSelfSwitch.js
+ LaserSwitch.js
 ----------------------------------------------------------------------------
  (C)2021 Triacontane
  Fork by Squall Seawave
@@ -155,16 +155,124 @@
     'use strict';
     const script = document.currentScript;
     const param = PluginManagerEx.createParameter(script);
-    const params = PluginManager.parameters("SS_AutoSelfSwitch");
+    const params = PluginManager.parameters("SS_LaserSwitch");
     if (!param.list || !Array.isArray(param.list)) {
         return;
     }
 
 
+    function eventAt(x, y) {
+    const events = $gameMap.eventsXy(x, y);
+    if (events.length > 0) return events[0]; // pick first for simplicity
+    return null;
+    }
+
+    function getLaserRedirect(event, dir) {
+    const meta = event.event().meta; // MZ note tags parsed
+    if (meta.laserRedirect === "RE45R") return LASER_45R[dir] ?? dir;
+    if (meta.laserRedirect === "RE45L") return LASER_45L[dir] ?? dir;
+    if (meta.laserRedirect === "STOP") return null;
+    // NEW: END = stop and set self switch D
+    if (meta.laserRedirect === "END") {
+        event.setSelfSwitch("D", true);
+        return null; // stop laser
+    }
+    return dir; // default = continue straight
+    }
+
     const BlockGlobal = param.RegionBlock || [1]
 
+    const DIR_VECTORS = {
+        1: [-1, 1],
+        2: [0, 1],
+        3: [1, 1],
+        4: [-1, 0],
+        6: [1, 0],
+        7: [-1, -1],
+        8: [0, -1],
+        9: [1, -1],
+    };
+
+    const Notetags = ["Laser", "Laser45R", "Laser45L", "Laser45"]
 
 
+    const LASER_45R = { 8: 9, 6: 3, 2: 1, 4:7 };
+    const LASER_45L = { 8: 7, 6: 9, 2: 3, 4:1 };
+    
+
+
+
+
+    Game_Event.prototype.getLaserDir = function () {
+        const dir = this.direction();
+        console.log(dir)
+        let notetag = Notetags.filter(item => PluginManagerEx.findMetaValue(this.event(), item))
+        this._laserdir = null
+ 
+
+        if (notetag == "Laser") this._laserdir = dir
+        else if (notetag == "Laser45R") this._laserdir = LASER_45R[dir]||dir
+        else if (notetag == "Laser45") this._laserdir = LASER_45R[dir]||dir
+        else if (notetag == "Laser45L") this._laserdir = LASER_45L[dir]||dir
+
+
+
+    }
+
+    Game_Event.prototype.fireLaserFromEvent = function () {
+
+        const [dx, dy] = DIR_VECTORS[this._laserdir];
+        console.log(DIR_VECTORS[this._laserdir])
+        let x = this.x;
+        let y = this.y;
+        const hits = []
+        while (true) {
+            x += dx;
+            y += dy;
+
+            if (!$gameMap.isValid(x, y)) break;
+
+            hits.push({ x, y });
+
+            /*
+            const ev = eventAt(x, y);
+            if (ev) {
+            const newDir = getLaserRedirect(ev, dir);
+            if (newDir == null) break;
+            if (newDir == -1) 
+            {
+            ev.
+            break;
+            }
+
+            dir = newDir;
+            [dx, dy] = DIR_VECTORS[dir];
+            }
+            */
+
+
+            // later:
+            // if (isBlocked(x, y)) break;
+        }
+
+        // DEBUG: visualize via console
+        console.log("Laser path:", hits);
+
+    }
+
+    const SS_Game_Event_initialize = Game_Event.prototype.initialize;
+    Game_Event.prototype.initialize = function () {
+        SS_Game_Event_initialize.apply(this, arguments);
+        this.getLaserDir()
+        this.fireLaserFromEvent();
+
+    }
+
+
+
+
+
+    /*
     const _Game_Event_initialize = Game_Event.prototype.initialize;
     Game_Event.prototype.initialize = function () {
         _Game_Event_initialize.apply(this, arguments);
@@ -697,7 +805,7 @@
                 (t.y - this._character.y) * $gameMap.tileHeight());
         }
     };
+    */
 
- 
 
 })();
