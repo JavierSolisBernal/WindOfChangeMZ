@@ -162,22 +162,22 @@
 
 
     function eventAt(x, y) {
-    const events = $gameMap.eventsXy(x, y);
-    if (events.length > 0) return events[0]; // pick first for simplicity
-    return null;
+        const events = $gameMap.eventsXy(x, y);
+        if (events.length > 0) return events[0]; // pick first for simplicity
+        return null;
     }
 
     function getLaserRedirect(event, dir) {
-    const meta = event.event().meta; // MZ note tags parsed
-    if (meta.laserRedirect === "RE45R") return LASER_45R[dir] ?? dir;
-    if (meta.laserRedirect === "RE45L") return LASER_45L[dir] ?? dir;
-    if (meta.laserRedirect === "STOP") return null;
-    // NEW: END = stop and set self switch D
-    if (meta.laserRedirect === "END") {
-        event.setSelfSwitch("D", true);
-        return null; // stop laser
-    }
-    return dir; // default = continue straight
+        const meta = event.event().meta; // MZ note tags parsed
+        if (meta.laserRedirect === "RE45R") return LASER_45R[dir] ?? dir;
+        if (meta.laserRedirect === "RE45L") return LASER_45L[dir] ?? dir;
+        if (meta.laserRedirect === "STOP") return null;
+        // NEW: END = stop and set self switch D
+        if (meta.laserRedirect === "END") {
+            event.setSelfSwitch("D", true);
+            return null; // stop laser
+        }
+        return dir; // default = continue straight
     }
 
     const BlockGlobal = param.RegionBlock || [1]
@@ -196,11 +196,44 @@
     const Notetags = ["Laser", "Laser45R", "Laser45L", "Laser45"]
 
 
-    const LASER_45R = { 8: 9, 6: 3, 2: 1, 4:7 };
-    const LASER_45L = { 8: 7, 6: 9, 2: 3, 4:1 };
+    // Event facing: DOWN = 0, LEFT = 1, RIGHT = 2, UP = 3
+    const relativeToAbsolute = {
+        0: { "U": "D", "D": "U", "L": "L", "R": "R", "UL": "DL", "UR": "DR", "DL": "UL", "DR": "UR" },
+        1: { "U": "L", "D": "R", "L": "D", "R": "U", "UL": "DL", "UR": "UL", "DL": "DR", "DR": "UR" },
+        2: { "U": "R", "D": "L", "L": "U", "R": "D", "UL": "UR", "UR": "DR", "DL": "UL", "DR": "DL" },
+        3: { "U": "U", "D": "D", "L": "R", "R": "L", "UL": "UR", "UR": "UL", "DL": "DR", "DR": "DL" },
+    };
+
+
+    const directionsMap = {
+        "U": { x: 0, y: -1 },
+        "D": { x: 0, y: 1 },
+        "L": { x: -1, y: 0 },
+        "R": { x: 1, y: 0 },
+        "UL": { x: -1, y: -1 },
+        "UR": { x: 1, y: -1 },
+        "DL": { x: -1, y: 1 },
+        "DR": { x: 1, y: 1 },
+    };
+
+    const LASER_45R = { 8: 9, 6: 3, 2: 1, 4: 7 };
+    const LASER_45L = { 8: 7, 6: 9, 2: 3, 4: 1 };
+
+
+    Game_Event.prototype.getLaserDirectionsFromNote = function () {
+        const note = this.event().note;
     
+        const match = note.match(/<Laser\s*([\w,]+)>/i);
+        let dir=[]
+        
+        //if (!match) return ["U"];
+        if(match) dir=match[1].split(",").map(d => d.trim()).slice(0, 4); // limit to 4 directions
+        
+        if(!match && note.toUpperCase().indexOf("LASER")>=0 ) dir=["U"]
+        console.log(dir)
+        //return match[1].split(",").map(d => d.trim()).slice(0, 4); // limit to 4 directions
 
-
+    }
 
 
     Game_Event.prototype.getLaserDir = function () {
@@ -208,12 +241,12 @@
         console.log(dir)
         let notetag = Notetags.filter(item => PluginManagerEx.findMetaValue(this.event(), item))
         this._laserdir = null
- 
+
 
         if (notetag == "Laser") this._laserdir = dir
-        else if (notetag == "Laser45R") this._laserdir = LASER_45R[dir]||dir
-        else if (notetag == "Laser45") this._laserdir = LASER_45R[dir]||dir
-        else if (notetag == "Laser45L") this._laserdir = LASER_45L[dir]||dir
+        else if (notetag == "Laser45R") this._laserdir = LASER_45R[dir] || dir
+        else if (notetag == "Laser45") this._laserdir = LASER_45R[dir] || dir
+        else if (notetag == "Laser45L") this._laserdir = LASER_45L[dir] || dir
 
 
 
@@ -263,8 +296,9 @@
     const SS_Game_Event_initialize = Game_Event.prototype.initialize;
     Game_Event.prototype.initialize = function () {
         SS_Game_Event_initialize.apply(this, arguments);
-        this.getLaserDir()
-        this.fireLaserFromEvent();
+        this.getLaserDirectionsFromNote()
+        //this.getLaserDir()
+        //this.fireLaserFromEvent();
 
     }
 
