@@ -172,6 +172,167 @@
     };
 
     class LaserBeam extends PIXI.Container {
+    constructor(x1, y1, x2, y2, color = "#ff0000ff", width = 6, glowWidth = 20, rotationSpeed = 0.15) {
+        super();
+
+        this._x1 = x1;
+        this._y1 = y1;
+        this._x2 = x2;
+        this._y2 = y2;
+
+        const hex = color.replace("#", "");
+        this._rgb = parseInt(hex.substring(0, 6), 16);
+        this._alpha = parseInt(hex.substring(6, 8), 16) / 255;
+
+        this._baseWidth = width;
+        this._glowWidth = glowWidth;
+
+        this._currentLength = 0;
+        this._fullLength = 0;
+        this._speed = 24;
+        this._state = "off";
+        this._frameCount = 0;
+
+        this.rotationSpeed = rotationSpeed; // default rotation speed per frame
+        this._rotateClockwise = true;       // default rotation direction
+
+        this.x = x1;
+        this.y = y1;
+
+        this._glowLayers = [];
+        [
+            { w: glowWidth, a: 0.08 },
+            { w: glowWidth * 0.65, a: 0.15 },
+            { w: glowWidth * 0.4, a: 0.25 }
+        ].forEach(s => {
+            const g = new PIXI.Graphics();
+            this.addChild(g);
+            this._glowLayers.push({ g, s });
+        });
+
+        this._beam = new PIXI.Graphics();
+        this.addChild(this._beam);
+
+        this.alpha = 0;
+    }
+
+    ignite() { this._state = "igniting"; this._currentLength = 0; this.alpha = 1; }
+    retract() { this._state = "retracting"; }
+
+    // Move end point with optional rotation speed & direction
+    moveEndTo(x, y, rotationSpeed = null, clockwise = true) {
+        this._x2 = x;
+        this._y2 = y;
+        if (rotationSpeed !== null) this.rotationSpeed = rotationSpeed;
+        this._rotateClockwise = clockwise;
+    }
+
+    _draw() {
+        if (this._currentLength <= 0) return;
+
+        const g = this._beam;
+        g.clear();
+        g.lineStyle({ width: this._baseWidth, color: this._rgb, alpha: this._alpha, cap: PIXI.LINE_CAP.ROUND });
+        g.moveTo(0, 0); g.lineTo(this._currentLength, 0);
+        g.lineStyle({ width: this._baseWidth * 0.45, color: 0xffffff, alpha: 1, cap: PIXI.LINE_CAP.ROUND });
+        g.moveTo(0, 0); g.lineTo(this._currentLength, 0);
+        this._glowLayers.forEach(o => {
+            const gl = o.g;
+            gl.clear();
+            gl.lineStyle({ width: o.s.w, color: this._rgb, alpha: o.s.a * this._alpha, cap: PIXI.LINE_CAP.ROUND });
+            gl.moveTo(0, 0); gl.lineTo(this._currentLength, 0);
+        });
+    }
+
+    update() {
+    this._frameCount++;
+
+    this.x = this._x1;
+    this.y = this._y1;
+
+    const dx = this._x2 - this.x;
+    const dy = this._y2 - this.y;
+    const targetRotation = Math.atan2(dy, dx);
+
+    // --- FIXED ROTATION ---
+    let current = this.rotation;
+    let diff = ((targetRotation - current + Math.PI) % (2 * Math.PI)) - Math.PI; // [-π, π]
+
+    // Apply rotation direction preference
+    if (!this._rotateClockwise && diff > 0) diff -= 2 * Math.PI;
+    if (!this._rotateClockwise && diff < 0) diff += 2 * Math.PI;
+
+    // Move rotation by at most rotationSpeed
+    if (Math.abs(diff) <= this.rotationSpeed) {
+        this.rotation = targetRotation; // close enough
+    } else {
+        this.rotation += Math.sign(diff) * this.rotationSpeed;
+    }
+
+    this._fullLength = Math.hypot(dx, dy);
+
+    switch (this._state) {
+        case "igniting":
+            this._currentLength += this._speed;
+            if (this._currentLength >= this._fullLength) { this._currentLength = this._fullLength; this._state = "on"; }
+            break;
+        case "retracting":
+            this._currentLength -= this._speed * 1.2;
+            if (this._currentLength <= 0) { this._currentLength = 0; this.alpha = 0; this._state = "off"; return; }
+            break;
+        case "off":
+            this.alpha = 0; return;
+    }
+
+    this.scale.y = 0.9 + Math.sin(this._frameCount / 10) * 0.1;
+    this._draw();
+}
+
+} 
+
+ 
+    Game_Event.prototype.spawnLaser = function (targetX, targetY, color = "#00ffccff", width = 6, glowWidth = 20) {
+        // Calculate pixel positions for target if given in tile coords
+        const map = $gameMap;
+        const tileWidth = map.tileWidth();
+        const tileHeight = map.tileHeight();
+
+        const originX = this.x * tileWidth + tileWidth / 2;
+        const originY = this.y * tileHeight + tileHeight / 2;
+
+        // If targetX/Y are tile coords, convert to pixels
+
+        const targetPixelX = targetX * tileWidth + tileWidth / 2;
+        const targetPixelY = targetY * tileHeight + tileHeight / 2;
+
+        // Create the laser beam
+        const laser = new LaserBeam(originX, originY, targetPixelX, targetPixelY, color, width, glowWidth);
+
+        // Add to current scene
+        SceneManager._scene.addChild(laser);
+
+        // Ignite automatically
+        laser.ignite();
+        this._laser1 = laser;
+        return laser;
+    };
+    Game_Event.prototype.killLaser = function () {
+        this._laser1.retract()
+    }
+
+    Game_Event.prototype.move = function (targetX, targetY) {
+        if(!this._laser1)return
+        const map = $gameMap;
+        const tileWidth = map.tileWidth();
+        const tileHeight = map.tileHeight();
+        const targetPixelX = targetX * tileWidth + tileWidth / 2;
+        const targetPixelY = targetY * tileHeight + tileHeight / 2;
+        
+        this._laser1.moveEndTo(targetPixelX, targetPixelY, 0.05, true)
+    }
+
+
+    class LaserBeambackup extends PIXI.Container {
         constructor(x1, y1, x2, y2, color = 0xff0000, width = 6, glowWidth = 20) {
             super();
 
