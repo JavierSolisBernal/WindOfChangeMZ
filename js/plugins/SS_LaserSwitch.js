@@ -160,16 +160,16 @@
         return;
     }
 
-    const directionsMap = {
-        "U": { x: 0, y: -1 },
-        "D": { x: 0, y: 1 },
-        "L": { x: -1, y: 0 },
-        "R": { x: 1, y: 0 },
-        "UL": { x: -1, y: -1 },
-        "UR": { x: 1, y: -1 },
-        "DL": { x: -1, y: 1 },
-        "DR": { x: 1, y: 1 },
-    };
+    const DIRECTIONS = [
+        { x: 0, y: -1 }, // 8 up
+        { x: 1, y: -1 }, // 9 up-right
+        { x: 1, y: 0 },  // 6 right
+        { x: 1, y: 1 },  // 3 down-right
+        { x: 0, y: 1 },  // 2 down
+        { x: -1, y: 1 }, // 1 down-left
+        { x: -1, y: 0 }, // 4 left
+        { x: -1, y: -1 } // 7 up-left
+    ];
 
 
     class LaserBeam extends PIXI.Container {
@@ -297,6 +297,7 @@
     }
 
 
+ 
 
 
     Game_Event.prototype.spawnLaser = function (targetX, targetY, color = "#00ffccff", width = 6, glowWidth = 20) {
@@ -320,13 +321,8 @@
             { x: 5, y: 2, flag: "end" }       // 2 tiles down from previous point
         ];
 
-        const laser = new LaserBeam(1, laserPath, "#00AA00ff");
-        // Create the laser beam
-        // const laser = new LaserBeam(originX, originY, targetPixelX, targetPixelY, color, width, glowWidth);
-
-        // Add to sort 
-
-        //
+        //const laser = new LaserBeam(1, laserPath, "#00AA00ff");
+        //const laser = new LaserRaySmooth(1, 8, "#00AA00ff")
 
         //SceneManager._scene._tilemap.addChild(laser);
         laser.addToMap()
