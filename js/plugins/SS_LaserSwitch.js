@@ -172,7 +172,7 @@
     ];
 
 
-    class LaserBeam extends PIXI.Container {
+    class LaserBeamPath extends PIXI.Container {
         constructor(eventId, pathPoints, color = "#ff0000ff", width = 6, glowWidth = 20) {
             super();
 
@@ -295,9 +295,449 @@
 
 
     }
+    class LaserBeam extends PIXI.Container {
+        constructor(eventId, direction = 8, color = "#ff0000ff", width = 6, glowWidth = 20, startFlag = "center") {
+            super();
+
+            this._eventId = eventId;
+            this._direction = direction;
+            this._startFlag = startFlag;
+
+            // Blocking config
+            this._blockRegions = [1, 2]; // ← edit freely
+            this._blockEvents = true;
+            this._blockPassage = true;
+
+            const hex = color.replace("#", "");
+            this._rgb = parseInt(hex.substring(0, 6), 16);
+            this._alpha = parseInt(hex.substring(6, 8), 16) / 255;
+
+            this._width = width;
+            this._glowWidth = glowWidth;
+
+            // Cache state
+            this._dirty = true;
+            this._lastX = null;
+            this._lastY = null;
+            this._lastDir = null;
+
+            // Glow animation
+            this._glowTime = Math.random() * Math.PI * 2;
+            this._glowSpeed = 0.08;
+            this._glowStrength = 0.35;
+
+            // Glow layers
+            this._glowLayers = [];
+            [
+                { w: glowWidth, a: 0.08 },
+                { w: glowWidth * 0.6, a: 0.16 },
+                { w: glowWidth * 0.35, a: 0.28 }
+            ].forEach(s => {
+                const g = new PIXI.Graphics();
+                g.blendMode = PIXI.BLEND_MODES.ADD;
+                g._baseAlpha = s.a;
+                this.addChild(g);
+                this._glowLayers.push({ g, s });
+            });
+
+            // Core beam
+            this._beam = new PIXI.Graphics();
+            this.addChild(this._beam);
+        }
+
+        update() {
+            const scene = SceneManager._scene;
+            if (!(scene instanceof Scene_Map)) return;
+
+            const tilemap = scene._spriteset._tilemap;
+
+            // Follow map scrolling
+            this.x = -tilemap.origin.x;
+            this.y = -tilemap.origin.y;
+
+            if (this._needsRedraw()) {
+                this._redraw();
+            }
+
+            this._animateGlow();
+        }
+
+        /* ===============================
+         *  Animation
+         * =============================== */
+
+        _animateGlow() {
+            this._glowTime += this._glowSpeed;
+            const pulse = (Math.sin(this._glowTime) + 1) * 0.5;
+
+            this._glowLayers.forEach(o => {
+                o.g.alpha = (o.g._baseAlpha + pulse * this._glowStrength) * this._alpha;
+            });
+        }
+
+        /* ===============================
+         *  Redraw logic
+         * =============================== */
+
+        _needsRedraw() {
+            const ev = $gameMap.event(this._eventId);
+            if (!ev) return false;
+
+            if (
+                ev.x !== this._lastX ||
+                ev.y !== this._lastY ||
+                this._direction !== this._lastDir
+            ) {
+                this._lastX = ev.x;
+                this._lastY = ev.y;
+                this._lastDir = this._direction;
+                return true;
+            }
+            return this._dirty;
+        }
+
+        _redraw() {
+            this._dirty = false;
+
+            const ev = $gameMap.event(this._eventId);
+            if (!ev) return;
+
+            const path = this._buildRayPath(ev.x, ev.y, this._direction);
+            if (path.length < 2) return;
+
+            const tw = $gameMap.tileWidth();
+            const th = $gameMap.tileHeight();
+
+            this._beam.clear();
+            this._glowLayers.forEach(o => o.g.clear());
+
+            for (let i = 0; i < path.length - 1; i++) {
+                const a = path[i];
+                const b = path[i + 1];
+
+                const dx = Math.sign(b.x - a.x);
+                const dy = Math.sign(b.y - a.y);
+
+                const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : undefined);
+                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? "end" : undefined);
+
+                const x1 = (ev.x + a.x) * tw + p1.x;
+                const y1 = (ev.y + a.y) * th + p1.y;
+                const x2 = (ev.x + b.x) * tw + p2.x;
+                const y2 = (ev.y + b.y) * th + p2.y;
+
+                // Core
+                this._beam.lineStyle(this._width, this._rgb, this._alpha);
+                this._beam.moveTo(x1, y1);
+                this._beam.lineTo(x2, y2);
+
+                // Inner core
+                this._beam.lineStyle(this._width * 0.45, 0xffffff, 1);
+                this._beam.moveTo(x1, y1);
+                this._beam.lineTo(x2, y2);
+
+                // Glow
+                this._glowLayers.forEach(o => {
+                    o.g.lineStyle(o.s.w, this._rgb, o.s.a);
+                    o.g.moveTo(x1, y1);
+                    o.g.lineTo(x2, y2);
+                });
+            }
+        }
+
+        /* ===============================
+         *  Ray building + blocking
+         * =============================== */
+
+        _buildRayPath(startX, startY, dir) {
+            const v = this._dirToVector(dir);
+            const path = [{ x: 0, y: 0, flag: "start" }];
+
+            let x = 0;
+            let y = 0;
+
+            while (true) {
+                x += v.x;
+                y += v.y;
+
+                const mx = startX + x;
+                const my = startY + y;
+
+                if (!$gameMap.isValid(mx, my)) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+
+                if (this._isBlockedByRegion(mx, my)) {
+                    path.push({ x, y, flag: "end" });
+                    break;
+                }
+
+                if (this._isBlockedByEvent(mx, my)) {
+                    path.push({ x, y, flag: "end" });
+                    break;
+                }
+
+                if (this._isBlockedByPassage(mx - v.x, my - v.y, v.x, v.y)) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+
+                path.push({ x, y });
+            }
+
+            path[path.length - 1].flag = "end";
+            return path;
+        }
+
+        _isBlockedByRegion(x, y) {
+            return this._blockRegions.includes($gameMap.regionId(x, y));
+        }
+
+        _isBlockedByEvent(x, y) {
+            if (!this._blockEvents) return false;
+
+            const events = $gameMap.eventsXyNt(x, y);
+            return events.some(ev => ev.eventId() !== this._eventId);
+        }
+
+        _isBlockedByPassage(x, y, dx, dy) {
+            if (!this._blockPassage) return false;
+
+            const dir =
+                dx === 1 && dy === 0 ? 6 :
+                    dx === -1 && dy === 0 ? 4 :
+                        dx === 0 && dy === 1 ? 2 :
+                            dx === 0 && dy === -1 ? 8 :
+                                0;
+
+            return dir && !$gameMap.isPassable(x, y, dir);
+        }
+
+        /* ===============================
+         *  Helpers
+         * =============================== */
+
+        _tileAnchor(p, dx, dy, tw, th, flag) {
+            flag = flag || p.flag || "center";
+
+            let ax = tw / 2;
+            let ay = th / 2;
+
+            if (flag === "start") {
+                if (dx) ax = dx > 0 ? 0 : tw;
+                if (dy) ay = dy > 0 ? 0 : th;
+            } else if (flag === "end") {
+                if (dx) ax = dx > 0 ? tw : 0;
+                if (dy) ay = dy > 0 ? th : 0;
+            }
+
+            return { x: ax, y: ay };
+        }
+
+        _dirToVector(dir) {
+            return {
+                1: { x: 1, y: 1 },
+                2: { x: 0, y: 1 },
+                3: { x: -1, y: 1 },
+                4: { x: -1, y: 0 },
+                6: { x: 1, y: 0 },
+                7: { x: -1, y: -1 },
+                8: { x: 0, y: -1 },
+                9: { x: 1, y: -1 }
+            }[dir] || { x: 0, y: -1 };
+        }
+
+        addToMap() {
+            const scene = SceneManager._scene;
+            if (!(scene instanceof Scene_Map)) return;
+
+            this.z = 3;
+            scene._spriteset._tilemap.addChild(this);
+            scene._spriteset._tilemap.children.sort((a, b) => (a.z || 0) - (b.z || 0));
+        }
+    }
 
 
- 
+
+
+    class LaserBeamline extends PIXI.Container {
+        /**
+         * @param {number} eventId - Event ID
+         * @param {number} direction - 1-9 direction (numeric keypad)
+         * @param {string} color - hex color (RRGGBBAA)
+         * @param {number} width - core width
+         * @param {number} glowWidth - glow width
+         * @param {"start"|"center"|"end"} startFlag - position within the first tile
+         */
+        constructor(eventId, direction = 8, color = "#ff0000ff", width = 6, glowWidth = 20, startFlag = "center") {
+            super();
+
+            this._eventId = eventId;
+            this._direction = direction;
+            this._startFlag = startFlag;
+
+            const hex = color.replace("#", "");
+            this._rgb = parseInt(hex.substring(0, 6), 16);
+            this._alpha = parseInt(hex.substring(6, 8), 16) / 255;
+
+            this._width = width;
+            this._glowWidth = glowWidth;
+
+            this._glowLayers = [];
+            [
+                { w: glowWidth, a: 0.08 },
+                { w: glowWidth * 0.6, a: 0.16 },
+                { w: glowWidth * 0.35, a: 0.28 }
+            ].forEach(s => {
+                const g = new PIXI.Graphics();
+                this.addChild(g);
+                this._glowLayers.push({ g, s });
+            });
+
+            this._beam = new PIXI.Graphics();
+            this.addChild(this._beam);
+        }
+
+        update() {
+            this.draw();
+        }
+
+        draw() {
+            const scene = SceneManager._scene;
+            if (!(scene instanceof Scene_Map)) return;
+
+            const ev = $gameMap.event(this._eventId);
+            if (!ev) return;
+
+            // Build path dynamically
+            this.path = this._buildRayPath(ev.x, ev.y, this._direction);
+            if (this.path.length < 2) return;
+
+            const tilemap = scene._spriteset._tilemap;
+            const tw = $gameMap.tileWidth();
+            const th = $gameMap.tileHeight();
+            const ox = tilemap.origin.x;
+            const oy = tilemap.origin.y;
+
+            const baseX = ev.x;
+            const baseY = ev.y;
+
+            this._beam.clear();
+            this._glowLayers.forEach(o => o.g.clear());
+
+            for (let i = 0; i < this.path.length - 1; i++) {
+                const a = this.path[i];
+                const b = this.path[i + 1];
+
+                const dx = Math.sign(b.x - a.x);
+                const dy = Math.sign(b.y - a.y);
+
+                const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : undefined);
+                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === this.path.length - 2 ? "end" : undefined);
+
+                const x1 = (baseX + a.x) * tw + p1.x - ox;
+                const y1 = (baseY + a.y) * th + p1.y - oy;
+                const x2 = (baseX + b.x) * tw + p2.x - ox;
+                const y2 = (baseY + b.y) * th + p2.y - oy;
+
+                // Core
+                this._beam.lineStyle(this._width, this._rgb, this._alpha);
+                this._beam.moveTo(x1, y1);
+                this._beam.lineTo(x2, y2);
+
+                // Inner core
+                this._beam.lineStyle(this._width * 0.45, 0xffffff, 1);
+                this._beam.moveTo(x1, y1);
+                this._beam.lineTo(x2, y2);
+
+                // Glow
+                this._glowLayers.forEach(o => {
+                    o.g.lineStyle(o.s.w, this._rgb, o.s.a * this._alpha);
+                    o.g.moveTo(x1, y1);
+                    o.g.lineTo(x2, y2);
+                });
+            }
+        }
+
+        _tileAnchor(p, dx, dy, tw, th, flag) {
+            // flag = "start" | "end" | "center"
+            flag = flag || p.flag || "center";
+
+            let ax = tw / 2;
+            let ay = th / 2;
+
+            if (flag === "start") {
+                if (dx !== 0 && dy === 0) ax = dx > 0 ? 0 : tw;
+                else if (dy !== 0 && dx === 0) ay = dy > 0 ? 0 : th;
+                else if (dx !== 0 && dy !== 0) {
+                    ax = dx > 0 ? 0 : tw;
+                    ay = dy > 0 ? 0 : th;
+                }
+            } else if (flag === "end") {
+                if (dx !== 0 && dy === 0) ax = dx > 0 ? tw : 0;
+                else if (dy !== 0 && dx === 0) ay = dy > 0 ? th : 0;
+                else if (dx !== 0 && dy !== 0) {
+                    ax = dx > 0 ? tw : 0;
+                    ay = dy > 0 ? th : 0;
+                }
+            }
+            // center is default, no changes
+
+            return { x: ax, y: ay };
+        }
+
+        _dirToVector(dir) {
+            switch (dir) {
+                case 1: return { x: 1, y: 1 };   // down-right
+                case 2: return { x: 0, y: 1 };   // down
+                case 3: return { x: -1, y: 1 };   // down-left
+                case 4: return { x: -1, y: 0 };   // left
+                case 6: return { x: 1, y: 0 };   // right
+                case 7: return { x: -1, y: -1 };  // up-left
+                case 8: return { x: 0, y: -1 };  // up
+                case 9: return { x: 1, y: -1 };  // up-right
+                default: return { x: 0, y: -1 };  // default up
+            }
+        }
+
+        _buildRayPath(startX, startY, dir) {
+            const v = this._dirToVector(dir);
+            const path = [];
+
+            let x = 0;
+            let y = 0;
+
+            path.push({ x: 0, y: 0, flag: "start" });
+
+            while (true) {
+                x += v.x;
+                y += v.y;
+
+                const mx = startX + x;
+                const my = startY + y;
+
+                if (!$gameMap.isValid(mx, my)) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+
+                path.push({ x, y });
+            }
+
+            path[path.length - 1].flag = "end";
+            return path;
+        }
+
+        addToMap(layer) {
+            const scene = SceneManager._scene;
+            const laser = this;
+            laser.z = 3;
+            scene._spriteset._tilemap.addChild(laser);
+            scene._spriteset._tilemap.children.sort((a, b) => (a.z || 0) - (b.z || 0));
+        }
+    }
+
 
 
     Game_Event.prototype.spawnLaser = function (targetX, targetY, color = "#00ffccff", width = 6, glowWidth = 20) {
@@ -321,7 +761,8 @@
             { x: 5, y: 2, flag: "end" }       // 2 tiles down from previous point
         ];
 
-        //const laser = new LaserBeam(1, laserPath, "#00AA00ff");
+        const laser = new LaserBeam(1, 8);
+        //const laser = new LaserBeam(1, laserPath );
         //const laser = new LaserRaySmooth(1, 8, "#00AA00ff")
 
         //SceneManager._scene._tilemap.addChild(laser);
