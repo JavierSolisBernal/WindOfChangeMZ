@@ -295,7 +295,7 @@
 
 
     }
-    class LaserBeam extends PIXI.Container {
+    class LaserBeambackup extends PIXI.Container {
         constructor(eventId, direction = 8, color = "#ff0000ff", width = 6, glowWidth = 20, startFlag = "center") {
             super();
 
@@ -559,6 +559,336 @@
     }
 
 
+    class LaserBeam extends PIXI.Container {
+        constructor(eventId, direction = 8, color = "#ff0000ff", width = 6, glowWidth = 20, startFlag = "center") {
+            super();
+
+            this._eventId = eventId;
+            this._direction = direction;
+            this._startFlag = startFlag;
+
+            // Blocking config
+            this._blockRegions = [1, 2];
+            this._blockEvents = true;
+            this._blockPassage = true;
+
+            const hex = color.replace("#", "");
+            this._rgb = parseInt(hex.substring(0, 6), 16);
+            this._alpha = parseInt(hex.substring(6, 8), 16) / 255;
+
+            this._width = width;
+            this._glowWidth = glowWidth;
+
+            // Cache state
+            this._dirty = true;
+            this._lastX = null;
+            this._lastY = null;
+            this._lastDir = null;
+
+            // Glow animation
+            this._glowTime = Math.random() * Math.PI * 2;
+            this._glowSpeed = 0.08;
+            this._glowStrength = 0.35;
+
+            // Glow layers
+            this._glowLayers = [];
+            [
+                { w: glowWidth, a: 0.08 },
+                { w: glowWidth * 0.6, a: 0.16 },
+                { w: glowWidth * 0.35, a: 0.28 }
+            ].forEach(s => {
+                const g = new PIXI.Graphics();
+                g.blendMode = PIXI.BLEND_MODES.ADD;
+                g._baseAlpha = s.a;
+                this.addChild(g);
+                this._glowLayers.push({ g, s });
+            });
+
+            // Core beam
+            this._beam = new PIXI.Graphics();
+            this.addChild(this._beam);
+        }
+
+        update() {
+            const scene = SceneManager._scene;
+            if (!(scene instanceof Scene_Map)) return;
+
+            const tilemap = scene._spriteset._tilemap;
+
+            // Follow map scrolling
+            this.x = -tilemap.origin.x;
+            this.y = -tilemap.origin.y;
+
+            if (this._needsRedraw()) {
+                this._redraw();
+            }
+
+            this._animateGlow();
+        }
+
+        /* ===============================
+         *  Animation
+         * =============================== */
+        _animateGlow() {
+            this._glowTime += this._glowSpeed;
+            const pulse = (Math.sin(this._glowTime) + 1) * 0.5;
+
+            this._glowLayers.forEach(o => {
+                o.g.alpha = (o.g._baseAlpha + pulse * this._glowStrength) * this._alpha;
+            });
+        }
+
+        /* ===============================
+         *  Redraw logic
+         * =============================== */
+        _needsRedraw() {
+            const ev = $gameMap.event(this._eventId);
+            if (!ev) return false;
+
+            if (
+                ev.x !== this._lastX ||
+                ev.y !== this._lastY ||
+                this._direction !== this._lastDir
+            ) {
+                this._lastX = ev.x;
+                this._lastY = ev.y;
+                this._lastDir = this._direction;
+                return true;
+            }
+            return this._dirty;
+        }
+
+        _redraw() {
+            this._dirty = false;
+
+            const ev = $gameMap.event(this._eventId);
+            if (!ev) return;
+
+            const path = this._buildRayPath(ev.x, ev.y, this._direction);
+            if (path.length < 2) return;
+
+            const tw = $gameMap.tileWidth();
+            const th = $gameMap.tileHeight();
+
+            this._beam.clear();
+            this._glowLayers.forEach(o => o.g.clear());
+
+            for (let i = 0; i < path.length - 1; i++) {
+                const a = path[i];
+                const b = path[i + 1];
+
+                const dx = Math.sign(b.x - a.x);
+                const dy = Math.sign(b.y - a.y);
+
+                const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : undefined);
+                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? "end" : undefined);
+
+                const x1 = (ev.x + a.x) * tw + p1.x;
+                const y1 = (ev.y + a.y) * th + p1.y;
+                const x2 = (ev.x + b.x) * tw + p2.x;
+                const y2 = (ev.y + b.y) * th + p2.y;
+
+                // Core
+                this._beam.lineStyle(this._width, this._rgb, this._alpha);
+                this._beam.moveTo(x1, y1);
+                this._beam.lineTo(x2, y2);
+
+                // Inner core
+                this._beam.lineStyle(this._width * 0.45, 0xffffff, 1);
+                this._beam.moveTo(x1, y1);
+                this._beam.lineTo(x2, y2);
+
+                // Glow
+                this._glowLayers.forEach(o => {
+                    o.g.lineStyle(o.s.w, this._rgb, o.s.a);
+                    o.g.moveTo(x1, y1);
+                    o.g.lineTo(x2, y2);
+                });
+            }
+        }
+
+        /* ===============================
+         *  Ray building + mirror logic
+         * =============================== */
+        _buildRayPath(startX, startY, dir) {
+            let curDir = dir;
+            let v = this._dirToVector(curDir);
+
+            const path = [{ x: 0, y: 0, flag: "start" }];
+            let x = 0;
+            let y = 0;
+
+            while (true) {
+                x += v.x;
+                y += v.y;
+
+                const mx = startX + x;
+                const my = startY + y;
+
+                if (!$gameMap.isValid(mx, my)) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+
+                const mirror = this._getMirrorAt(mx, my);
+                if (mirror) {
+                    path.push({ x, y });
+
+                    // Rotate sprite based on _event_dir
+                    if (mirror._character) {
+                        mirror._character.rotation = this._dirToAngle(mirror._event_dir);
+                    }
+
+                    curDir = this._reflectDir(curDir, mirror);
+
+                    if (!curDir) {
+                        path.push({ x, y, flag: "end" });
+                        break;
+                    }
+                    v = this._dirToVector(curDir);
+                    continue;
+                }
+
+                if (this._isBlockedByRegion(mx, my)) {
+                    path.push({ x, y, flag: "end" });
+                    break;
+                }
+
+                if (this._isBlockedByEvent(mx, my)) {
+                    path.push({ x, y, flag: "end" });
+                    break;
+                }
+
+                if (this._isBlockedByPassage(mx - v.x, my - v.y, v.x, v.y)) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+
+                path.push({ x, y });
+            }
+
+            path[path.length - 1].flag = "end";
+            return path;
+        }
+
+        _isBlockedByRegion(x, y) {
+            return this._blockRegions.includes($gameMap.regionId(x, y));
+        }
+
+        _isBlockedByEvent(x, y) {
+            if (!this._blockEvents) return false;
+
+            const events = $gameMap.eventsXyNt(x, y);
+            return events.some(ev =>
+                ev.eventId() !== this._eventId &&
+                !ev._event_dir // mirrors don’t block
+            );
+        }
+
+        _isBlockedByPassage(x, y, dx, dy) {
+            if (!this._blockPassage) return false;
+
+            const dir =
+                dx === 1 && dy === 0 ? 6 :
+                    dx === -1 && dy === 0 ? 4 :
+                        dx === 0 && dy === 1 ? 2 :
+                            dx === 0 && dy === -1 ? 8 : 0;
+
+            return dir && !$gameMap.isPassable(x, y, dir);
+        }
+
+        /* ===============================
+         *  Mirror helpers
+         * =============================== */
+        _getMirrorAt(x, y) {
+            const events = $gameMap.eventsXyNt(x, y);
+            return events.find(ev => ev._event_dir); // any event with _event_dir
+        }
+
+        _normalizeDir(dir) {
+            if (typeof dir === "number") return dir;
+            const map = { U: 8, D: 2, L: 4, R: 6, UL: 7, UR: 9, DL: 1, DR: 3 };
+            return map[String(dir).toUpperCase()] || 0;
+        }
+
+        _reflectDir(inDir, mirror) {
+            const m = this._normalizeDir(mirror._event_dir);
+            const mode = mirror._mirror_mode || "all-way";
+
+            if (mode === "one-way") {
+                const allowed = { 4: [6], 6: [4], 8: [2], 2: [8], 7: [3], 3: [7], 1: [9], 9: [1] };
+                if (!allowed[m]?.includes(inDir)) {
+                    return null; // laser stops here
+                }
+            }
+
+            // Horizontal
+            if (m === 4 || m === 6) return { 8: 2, 2: 8, 7: 1, 9: 3, 1: 7, 3: 9 }[inDir] || inDir;
+            // Vertical
+            if (m === 8 || m === 2) return { 4: 6, 6: 4, 7: 9, 1: 3, 9: 7, 3: 1 }[inDir] || inDir;
+            // Diagonal \
+            if (m === 7 || m === 3) return { 8: 4, 6: 2, 4: 8, 2: 6, 9: 1, 1: 9 }[inDir] || inDir;
+            // Diagonal /
+            if (m === 9 || m === 1) return { 8: 6, 4: 2, 6: 8, 2: 4, 7: 3, 3: 7 }[inDir] || inDir;
+
+            return inDir;
+        }
+
+
+        _dirToVector(dir) {
+            return {
+                1: { x: 1, y: 1 },
+                2: { x: 0, y: 1 },
+                3: { x: -1, y: 1 },
+                4: { x: -1, y: 0 },
+                6: { x: 1, y: 0 },
+                7: { x: -1, y: -1 },
+                8: { x: 0, y: -1 },
+                9: { x: 1, y: -1 }
+            }[dir] || { x: 0, y: -1 };
+        }
+
+        _dirToAngle(dir) {
+            const map = { 1: 5 * Math.PI / 4, 2: Math.PI / 2, 3: 3 * Math.PI / 4, 4: Math.PI, 6: 0, 7: -3 * Math.PI / 4, 8: -Math.PI / 2, 9: -Math.PI / 4 };
+            return map[dir] || 0;
+        }
+
+        _tileAnchor(p, dx, dy, tw, th, flag) {
+            flag = flag || p.flag || "center";
+            let ax = tw / 2, ay = th / 2;
+
+            if (flag === "start") { if (dx) ax = dx > 0 ? 0 : tw; if (dy) ay = dy > 0 ? 0 : th; }
+            else if (flag === "end") { if (dx) ax = dx > 0 ? tw : 0; if (dy) ay = dy > 0 ? th : 0; }
+
+            return { x: ax, y: ay };
+        }
+
+        addToMap() {
+            const scene = SceneManager._scene;
+            if (!(scene instanceof Scene_Map)) return;
+
+            this.z = 3;
+            scene._spriteset._tilemap.addChild(this);
+            scene._spriteset._tilemap.children.sort((a, b) => (a.z || 0) - (b.z || 0));
+        }
+
+        /* ===============================
+         *  Event note tag parser for mirrors
+         * =============================== */
+        static setupMirrorEvent(ev) {
+            if (!ev.event) return;
+            const note = ev.event().note;
+            console.log(note)
+            const match = note.match(/<Mirror:\s*(\w+)\s*,?\s*(one-way|all-way)?\s*>/i);
+            if (match) {
+                const dir = match[1];
+                const mode = match[2] || "all-way";
+
+                ev._event_dir = dir;
+                ev._mirror_mode = mode;
+            }
+        }
+    }
 
 
     class LaserBeamline extends PIXI.Container {
@@ -777,6 +1107,42 @@
         this._laser1.retract()
     }
 
+    Game_Event.prototype.rotateMirrorCW = function () {
+        const order = [1, 2, 3, 6, 9, 8, 7, 4]; // clockwise order ignoring 5 (center)
+        let dir =this._event_dir
+        const map = { U: 8, D: 2, L: 4, R: 6, UL: 7, UR: 9, DL: 1, DR: 3 };
+        if (typeof dir === "number")  dir;
+        else
+        dir=map[dir]   
+        const idx = order.indexOf(dir);
+        if (idx >= 0) this._event_dir = order[(idx + 1) % order.length];
+    };
+
+    Game_Event.prototype.rotateMirrorCCW = function () {
+        const order = [1, 4, 7, 8, 9, 6, 3, 2]; // counterclockwise
+        let dir =this._event_dir
+        const map = { U: 8, D: 2, L: 4, R: 6, UL: 7, UR: 9, DL: 1, DR: 3 };
+        if (typeof dir === "number")  dir;
+        else
+        dir=map[dir]   
+        const idx = order.indexOf(dir);
+        if (idx >= 0) this._event_dir = order[(idx + 1) % order.length];
+    };
+
+
+
+    const SS_Scene_Map_start = Scene_Map.prototype.start;
+    Scene_Map.prototype.start = function () {
+        SS_Scene_Map_start.call(this);
+
+        // Parse all mirrors on the map
+        $gameMap.events().forEach(ev => {
+            LaserBeam.setupMirrorEvent(ev);
+        });
+
+        
+
+    };
 
 
 })();
