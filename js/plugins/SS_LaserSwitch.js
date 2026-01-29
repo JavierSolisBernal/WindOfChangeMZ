@@ -473,7 +473,7 @@
             scene._spriteset._tilemap.children.sort((a, b) => (a.z || 0) - (b.z || 0));
         }
     }
- 
+
 
     class LaserBeam extends PIXI.Container {
         constructor(eventId, direction = 8, color = "#ff0000ff", width = 6, glowWidth = 20, startFlag = "center") {
@@ -495,11 +495,14 @@
             this._width = width;
             this._glowWidth = glowWidth;
 
-            // Cache state
+            // Cache
             this._dirty = true;
             this._lastX = null;
             this._lastY = null;
             this._lastDir = null;
+
+            // 🔥 Mirror dir cache (key feature)
+            this._mirrorDirCache = new Map();
 
             // Glow animation
             this._glowTime = Math.random() * Math.PI * 2;
@@ -520,7 +523,6 @@
                 this._glowLayers.push({ g, s });
             });
 
-            // Core beam
             this._beam = new PIXI.Graphics();
             this.addChild(this._beam);
         }
@@ -530,8 +532,6 @@
             if (!(scene instanceof Scene_Map)) return;
 
             const tilemap = scene._spriteset._tilemap;
-
-            // Follow map scrolling
             this.x = -tilemap.origin.x;
             this.y = -tilemap.origin.y;
 
@@ -543,7 +543,7 @@
         }
 
         /* ===============================
-         *  Animation
+         * Animation
          * =============================== */
         _animateGlow() {
             this._glowTime += this._glowSpeed;
@@ -555,25 +555,53 @@
         }
 
         /* ===============================
-         *  Redraw logic
+         * Redraw detection
          * =============================== */
         _needsRedraw() {
-            const ev = $gameMap.event(this._eventId);
-            if (!ev) return false;
+            const src = $gameMap.event(this._eventId);
+            if (!src) return false;
 
+            // Source moved or rotated
             if (
-                ev.x !== this._lastX ||
-                ev.y !== this._lastY ||
+                src.x !== this._lastX ||
+                src.y !== this._lastY ||
                 this._direction !== this._lastDir
             ) {
-                this._lastX = ev.x;
-                this._lastY = ev.y;
+                this._lastX = src.x;
+                this._lastY = src.y;
                 this._lastDir = this._direction;
                 return true;
             }
-            return this._dirty;
+
+            // 🔥 Detect mirror direction / mode changes
+            let changed = false;
+            const mirrors = $gameMap.events().filter(e => e._event_dir);
+
+            for (const m of mirrors) {
+                const id = m.eventId();
+                const state = `${m._event_dir}:${m._mirror_mode || "all-way"}`;
+                const last = this._mirrorDirCache.get(id);
+
+                if (last !== state) {
+                    this._mirrorDirCache.set(id, state);
+                    changed = true;
+                }
+            }
+
+            // Clean up removed mirrors
+            for (const id of this._mirrorDirCache.keys()) {
+                if (!mirrors.some(m => m.eventId() === id)) {
+                    this._mirrorDirCache.delete(id);
+                    changed = true;
+                }
+            }
+
+            return changed || this._dirty;
         }
 
+        /* ===============================
+         * Redraw
+         * =============================== */
         _redraw() {
             this._dirty = false;
 
@@ -624,13 +652,13 @@
         }
 
         /* ===============================
-         *  Ray building + mirror logic
+         * Ray + mirror logic
          * =============================== */
         _buildRayPath(startX, startY, dir) {
             let curDir = dir;
             let v = this._dirToVector(curDir);
 
-            const path = [{ x: 0, y: 0, flag: "start" }];
+            const path = [{ x: 0, y: 0 }];
             let x = 0;
             let y = 0;
 
@@ -641,49 +669,37 @@
                 const mx = startX + x;
                 const my = startY + y;
 
-                if (!$gameMap.isValid(mx, my)) {
-                    path[path.length - 1].flag = "end";
-                    break;
-                }
+                if (!$gameMap.isValid(mx, my)) break;
 
                 const mirror = this._getMirrorAt(mx, my);
                 if (mirror) {
                     path.push({ x, y });
 
-                    // Rotate sprite based on _event_dir
                     if (mirror._character) {
-                        mirror._character.rotation = this._dirToAngle(mirror._event_dir);
+                        mirror._character.rotation =
+                            this._dirToAngle(this._normalizeDir(mirror._event_dir));
                     }
 
-                    curDir = this._reflectDir(curDir, mirror);
+                    const newDir = this._reflectDir(curDir, mirror);
+                    if (!newDir) break;
 
-                    if (!curDir) {
-                        path.push({ x, y, flag: "end" });
-                        break;
-                    }
+                    curDir = newDir;
                     v = this._dirToVector(curDir);
                     continue;
                 }
 
-                if (this._isBlockedByRegion(mx, my)) {
-                    path.push({ x, y, flag: "end" });
-                    break;
-                }
-
-                if (this._isBlockedByEvent(mx, my)) {
-                    path.push({ x, y, flag: "end" });
-                    break;
-                }
-
-                if (this._isBlockedByPassage(mx - v.x, my - v.y, v.x, v.y)) {
-                    path[path.length - 1].flag = "end";
+                if (
+                    this._isBlockedByRegion(mx, my) ||
+                    this._isBlockedByEvent(mx, my) ||
+                    this._isBlockedByPassage(mx - v.x, my - v.y, v.x, v.y)
+                ) {
+                    path.push({ x, y });
                     break;
                 }
 
                 path.push({ x, y });
             }
 
-            path[path.length - 1].flag = "end";
             return path;
         }
 
@@ -693,61 +709,50 @@
 
         _isBlockedByEvent(x, y) {
             if (!this._blockEvents) return false;
-
-            const events = $gameMap.eventsXyNt(x, y);
-            return events.some(ev =>
-                ev.eventId() !== this._eventId &&
-                !ev._event_dir // mirrors don’t block
+            return $gameMap.eventsXyNt(x, y).some(ev =>
+                ev.eventId() !== this._eventId && !ev._event_dir
             );
         }
 
         _isBlockedByPassage(x, y, dx, dy) {
             if (!this._blockPassage) return false;
-
-            const dir =
-                dx === 1 && dy === 0 ? 6 :
-                    dx === -1 && dy === 0 ? 4 :
-                        dx === 0 && dy === 1 ? 2 :
-                            dx === 0 && dy === -1 ? 8 : 0;
-
+            const dir = dx === 1 ? 6 : dx === -1 ? 4 : dy === 1 ? 2 : dy === -1 ? 8 : 0;
             return dir && !$gameMap.isPassable(x, y, dir);
         }
 
         /* ===============================
-         *  Mirror helpers
+         * Mirror helpers
          * =============================== */
         _getMirrorAt(x, y) {
-            const events = $gameMap.eventsXyNt(x, y);
-            return events.find(ev => ev._event_dir); // any event with _event_dir
+            return $gameMap.eventsXyNt(x, y).find(ev => ev._event_dir);
         }
 
         _normalizeDir(dir) {
-            if (typeof dir === "number") return dir;
             const map = { U: 8, D: 2, L: 4, R: 6, UL: 7, UR: 9, DL: 1, DR: 3 };
-            return map[String(dir).toUpperCase()] || 0;
+            return typeof dir === "number" ? dir : map[String(dir).toUpperCase()] || 0;
         }
 
         _reflectDir(inDir, mirror) {
             const m = this._normalizeDir(mirror._event_dir);
             const mode = mirror._mirror_mode || "all-way";
 
-            /*
             if (mode === "one-way") {
-                const allowed = { 4: [6], 6: [4], 8: [2], 2: [8], 7: [3], 3: [7], 1: [9], 9: [1] };
-                if (!allowed[m]?.includes(inDir)) {
-                    return null; // laser stops here
-                }
+                const vin = this._dirToVector(inDir);
+                const vnorm = this._dirToVector(m);
+                if (vin.x * vnorm.x + vin.y * vnorm.y >= 0) return null;
             }
-            */
+            
+            // Horizontal mirror (←→)
+            if (m === 4 || m === 6) return { 8: 2, 2: 8, 7: 1, 9: 3, 1: 7, 3: 9, 4: 4, 6: 6 }[inDir] || inDir;
 
-            // Horizontal
-            if (m === 4 || m === 6) return { 8: 2, 2: 8, 7: 1, 9: 3, 1: 7, 3: 9 }[inDir] || inDir;
-            // Vertical
-            if (m === 8 || m === 2) return { 4: 6, 6: 4, 7: 9, 1: 3, 9: 7, 3: 1 }[inDir] || inDir;
-            // Diagonal \
-            if (m === 7 || m === 3) return { 8: 4, 6: 2, 4: 8, 2: 6, 9: 1, 1: 9 }[inDir] || inDir;
-            // Diagonal /
-            if (m === 9 || m === 1) return { 8: 6, 4: 2, 6: 8, 2: 4, 7: 3, 3: 7 }[inDir] || inDir;
+            // Vertical mirror (↑↓)
+            if (m === 8 || m === 2) return { 4: 6, 6: 4, 7: 9, 1: 3, 9: 7, 3: 1, 8: 8, 2: 2 }[inDir] || inDir;
+
+            // Diagonal '\' mirror
+            if (m === 7 || m === 3) return { 8: 4, 4: 8, 2: 6, 6: 2, 7: 1, 1: 7, 9: 3, 3: 9 }[inDir] || inDir;
+
+            // Diagonal '/' mirror
+            if (m === 9 || m === 1) return { 8: 6, 6: 8, 4: 2, 2: 4, 7: 3, 3: 7, 9: 1, 1: 9 }[inDir] || inDir;
 
             return inDir;
         }
@@ -755,28 +760,38 @@
 
         _dirToVector(dir) {
             return {
-                1: { x: 1, y: 1 },
-                2: { x: 0, y: 1 },
-                3: { x: -1, y: 1 },
-                4: { x: -1, y: 0 },
-                6: { x: 1, y: 0 },
-                7: { x: -1, y: -1 },
-                8: { x: 0, y: -1 },
-                9: { x: 1, y: -1 }
+                1: { x: 1, y: 1 }, 2: { x: 0, y: 1 }, 3: { x: -1, y: 1 },
+                4: { x: -1, y: 0 }, 6: { x: 1, y: 0 },
+                7: { x: -1, y: -1 }, 8: { x: 0, y: -1 }, 9: { x: 1, y: -1 }
             }[dir] || { x: 0, y: -1 };
         }
 
         _dirToAngle(dir) {
-            const map = { 1: 5 * Math.PI / 4, 2: Math.PI / 2, 3: 3 * Math.PI / 4, 4: Math.PI, 6: 0, 7: -3 * Math.PI / 4, 8: -Math.PI / 2, 9: -Math.PI / 4 };
+            const map = {
+                1: -5 * Math.PI / 4,
+                2: -Math.PI / 2,
+                3: -3 * Math.PI / 4,
+                4: -Math.PI,
+                6: 0,
+                7: 3 * Math.PI / 4,
+                8: Math.PI / 2,
+                9: Math.PI / 4
+            };
             return map[dir] || 0;
         }
+
 
         _tileAnchor(p, dx, dy, tw, th, flag) {
             flag = flag || p.flag || "center";
             let ax = tw / 2, ay = th / 2;
 
-            if (flag === "start") { if (dx) ax = dx > 0 ? 0 : tw; if (dy) ay = dy > 0 ? 0 : th; }
-            else if (flag === "end") { if (dx) ax = dx > 0 ? tw : 0; if (dy) ay = dy > 0 ? th : 0; }
+            if (flag === "start") {
+                if (dx) ax = dx > 0 ? 0 : tw;
+                if (dy) ay = dy > 0 ? 0 : th;
+            } else if (flag === "end") {
+                if (dx) ax = dx > 0 ? tw : 0;
+                if (dy) ay = dy > 0 ? th : 0;
+            }
 
             return { x: ax, y: ay };
         }
@@ -784,26 +799,21 @@
         addToMap() {
             const scene = SceneManager._scene;
             if (!(scene instanceof Scene_Map)) return;
-
             this.z = 3;
             scene._spriteset._tilemap.addChild(this);
             scene._spriteset._tilemap.children.sort((a, b) => (a.z || 0) - (b.z || 0));
         }
 
         /* ===============================
-         *  Event note tag parser for mirrors
+         * Mirror note parser
          * =============================== */
         static setupMirrorEvent(ev) {
             if (!ev.event) return;
             const note = ev.event().note;
-            console.log(note)
             const match = note.match(/<Mirror:\s*(\w+)\s*,?\s*(one-way|all-way)?\s*>/i);
             if (match) {
-                const dir = match[1];
-                const mode = match[2] || "all-way";
-
-                ev._event_dir = dir;
-                ev._mirror_mode = mode;
+                ev._event_dir = match[1];
+                ev._mirror_mode = match[2] || "all-way";
             }
         }
     }
@@ -849,25 +859,30 @@
     }
 
     Game_Event.prototype.rotateMirrorCW = function () {
-        const order = [1, 2, 3, 6, 9, 8, 7, 4]; // clockwise order ignoring 5 (center)
-        let dir =this._event_dir
+        const order = [8, 9, 6, 3, 2, 1, 4, 7];
+
+        //const order = [1, 2, 3, 6, 9, 8, 7, 4]; // clockwise order ignoring 5 (center)
+        let dir = this._event_dir
         const map = { U: 8, D: 2, L: 4, R: 6, UL: 7, UR: 9, DL: 1, DR: 3 };
-        if (typeof dir === "number")  dir;
+
+        if (typeof dir === "number") dir;
         else
-        dir=map[dir]   
+            dir = map[dir]
         const idx = order.indexOf(dir);
         if (idx >= 0) this._event_dir = order[(idx + 1) % order.length];
+
     };
 
     Game_Event.prototype.rotateMirrorCCW = function () {
         const order = [1, 4, 7, 8, 9, 6, 3, 2]; // counterclockwise
-        let dir =this._event_dir
+        let dir = this._event_dir
         const map = { U: 8, D: 2, L: 4, R: 6, UL: 7, UR: 9, DL: 1, DR: 3 };
-        if (typeof dir === "number")  dir;
+        if (typeof dir === "number") dir;
         else
-        dir=map[dir]   
+            dir = map[dir]
         const idx = order.indexOf(dir);
         if (idx >= 0) this._event_dir = order[(idx + 1) % order.length];
+
     };
 
 
@@ -881,7 +896,7 @@
             LaserBeam.setupMirrorEvent(ev);
         });
 
-        
+
 
     };
 
