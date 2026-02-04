@@ -297,7 +297,7 @@
     }
 
 
-    class LaserBeamline extends PIXI.Container {
+    class LaserBeamlineBackup extends PIXI.Container {
         /**
          * @param {number} eventId - Event ID
          * @param {number} direction - 1-9 direction (numeric keypad)
@@ -820,6 +820,8 @@
 
 
 
+ 
+
 
     Game_Event.prototype.spawnLaser = function (targetX, targetY, color = "#00ffccff", width = 6, glowWidth = 20) {
         // Calculate pixel positions for target if given in tile coords
@@ -842,10 +844,12 @@
             { x: 5, y: 2, flag: "end" }       // 2 tiles down from previous point
         ];
 
-        const laser = new LaserBeam(1, 8);
-        //const laser = new LaserBeam(1, laserPath );
-        //const laser = new LaserRaySmooth(1, 8, "#00AA00ff")
+        
+        const laser = new LaserBeamline(1, 8, color);
 
+        //const laser = new LaserBeam(1, 8);
+   
+        //laser.erase()
         //SceneManager._scene._tilemap.addChild(laser);
         laser.addToMap()
 
