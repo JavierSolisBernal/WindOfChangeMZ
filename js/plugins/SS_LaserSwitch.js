@@ -1213,6 +1213,59 @@
 
 
 
+// ==================================================
+// Queue a laser for a map
+// ==================================================
+Game_Temp.prototype.queueLaserForMap = function (
+    mapId,
+    eventId,
+    direction = 8,
+    slot = 0,
+    persistent = false,
+    color = "#ff0000ff",
+    width = 6,
+    glowWidth = 20,
+    startFlag = "center",
+ ) {
+    this.pendingLaserSpawns = this.pendingLaserSpawns || [];
+    const laserData = {
+        mapId,
+        eventId,
+        direction,
+        color,
+        width,
+        glowWidth,
+        startFlag,
+        slot
+    };
+    this.pendingLaserSpawns.push(laserData);
+
+    // If persistent, also store in $gameSystem
+    if (persistent) {
+        $gameSystem.pendingLaserSpawns = $gameSystem.pendingLaserSpawns || [];
+        $gameSystem.pendingLaserSpawns.push({ ...laserData });
+    }
+};
+
+// ==================================================
+// Remove a pending laser from temp and optionally persistent storage
+// ==================================================
+Game_Temp.prototype.removePendingLaser = function (eventId, mapId, slot = 0, removePersistent = false) {
+    if (this.pendingLaserSpawns) {
+        this.pendingLaserSpawns = this.pendingLaserSpawns.filter(
+            l => !(l.eventId === eventId && l.mapId === mapId && l.slot === slot)
+        );
+    }
+
+    if (removePersistent && $gameSystem.pendingLaserSpawns) {
+        $gameSystem.pendingLaserSpawns = $gameSystem.pendingLaserSpawns.filter(
+            l => !(l.eventId === eventId && l.mapId === mapId && l.slot === slot)
+        );
+    }
+};
+
+
+
     Game_Event.prototype.spawnLaser = function (slot, direction, color = "#00ffccff", width = 6, glowWidth = 20, position = 'center') {
         new LaserBeamline(1, direction, color, width, glowWidth, position, slot).addToMap();
     }
@@ -1221,6 +1274,42 @@
     }
 
 
+// ==================================================
+// Spawn queued lasers when entering a map
+// ==================================================
+//const _Scene_Map_start = Scene_Map.prototype.start;
+Scene_Map.prototype.start = function () {
+    _Scene_Map_start.call(this);
+
+    $gameTemp.pendingLaserSpawns = $gameTemp.pendingLaserSpawns || [];
+    $gameSystem.pendingLaserSpawns = $gameSystem.pendingLaserSpawns || [];
+
+    // Copy persistent lasers into temp queue
+    const persistentCopy = $gameSystem.pendingLaserSpawns.map(l => ({ ...l }));
+    $gameTemp.pendingLaserSpawns = $gameTemp.pendingLaserSpawns.concat(persistentCopy);
+
+    // Filter lasers for this map
+    const mapId = $gameMap.mapId();
+    const toSpawn = $gameTemp.pendingLaserSpawns.filter(l => l.mapId === mapId);
+    if (!toSpawn.length) return;
+
+    // Spawn lasers
+    toSpawn.forEach(data => {
+        new LaserBeamline(
+            data.eventId,
+            data.direction,
+            data.color,
+            data.width,
+            data.glowWidth,
+            data.startFlag,
+            data.slot,
+            data.mapId
+        ).addToMap();
+    });
+
+    // Remove spawned lasers from temp queue only
+    $gameTemp.pendingLaserSpawns = $gameTemp.pendingLaserSpawns.filter(l => l.mapId !== mapId);
+};
 
 
 

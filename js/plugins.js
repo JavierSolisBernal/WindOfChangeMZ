@@ -8,7 +8,7 @@ var $plugins =
 {"name":"AutoSelfSwitch","status":false,"description":"オートセルフスイッチプラグイン","parameters":{"list":"[\"{\\\"noteTag\\\":\\\"selfSwitchB3\\\",\\\"playerDistance\\\":\\\"3\\\",\\\"conditionType\\\":\\\"0\\\",\\\"type\\\":\\\"C\\\",\\\"turnOff\\\":\\\"true\\\",\\\"reverse\\\":\\\"true\\\",\\\"switchId\\\":\\\"0\\\"}\",\"{\\\"noteTag\\\":\\\"LookAhead3\\\",\\\"playerDistance\\\":\\\"3\\\",\\\"conditionType\\\":\\\"0\\\",\\\"type\\\":\\\"D\\\",\\\"turnOff\\\":\\\"false\\\",\\\"reverse\\\":\\\"false\\\",\\\"switchId\\\":\\\"0\\\",\\\"Dots\\\":\\\"true\\\",\\\"DetectionType\\\":\\\"0\\\"}\"]"}},
 {"name":"BattlerGraphicExtend","status":false,"description":"バトラーグラフィック表示拡張プラグイン","parameters":{}},
 {"name":"=============================","status":false,"description":"=========================================================================","parameters":{}},
-{"name":"IgnisSkipTitle","status":true,"description":"Jumps the Title Screen, this enables the maker to create title screen with events.","parameters":{}},
+{"name":"IgnisSkipTitle","status":false,"description":"Jumps the Title Screen, this enables the maker to create title screen with events.","parameters":{}},
 {"name":"IgnisTextDatabase","status":true,"description":"Text Database v.1.0.0","parameters":{"defaultFolder":"text","textFiles":"[\"en\",\"es\"]","defaultFile":"en"}},
 {"name":"actor_stepping_animation_(mv)","status":true,"description":"Allows party leader/followers to have stepping anim on map","parameters":{}},
 {"name":"=============================","status":false,"description":"=========================================================================","parameters":{}},
