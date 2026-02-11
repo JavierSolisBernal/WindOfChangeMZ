@@ -971,9 +971,30 @@ class LaserBeamline extends PIXI.Container {
         );
     }
 
+    /*
     update() {
         this.draw();
     }
+    */
+
+    update() {
+        const ev = $gameMap.event(this._eventId);
+        if (!ev) return;
+
+        if (
+            this._lastX !== ev.x ||
+            this._lastY !== ev.y ||
+            this._lastOx !== SceneManager._scene._spriteset._tilemap.origin.x ||
+            this._lastOy !== SceneManager._scene._spriteset._tilemap.origin.y
+        ) {
+            this._lastX = ev.x;
+            this._lastY = ev.y;
+            this._lastOx = SceneManager._scene._spriteset._tilemap.origin.x;
+            this._lastOy = SceneManager._scene._spriteset._tilemap.origin.y;
+            this.draw();
+        }
+    }
+
 
     // ==================================================
     // DRAWING
@@ -1096,6 +1117,18 @@ class LaserBeamline extends PIXI.Container {
         LaserBeamline.restoreForCurrentMap();
     };
 })();
+
+
+const _Spriteset_Map_update = Spriteset_Map.prototype.update;
+Spriteset_Map.prototype.update = function() {
+    _Spriteset_Map_update.call(this);
+    for (const laser of LaserBeamline._active.values()) {
+        laser.update();
+    }
+};
+
+
+
     Game_Event.prototype.spawnLaser=function(slot, direction, color="#00ffccff", width=6, glowWidth=20, position='center'){
     new LaserBeamline(1, direction, color, width, glowWidth, position, slot).addToMap(); 
     }
@@ -1106,38 +1139,7 @@ class LaserBeamline extends PIXI.Container {
     
 
  
-
-    Game_Event.prototype.spawnLaser2= function (targetX, targetY, color = "#00ffccff", width = 6, glowWidth = 20) {
-        // Calculate pixel positions for target if given in tile coords
-        const map = $gameMap;
-        const tileWidth = map.tileWidth();
-        const tileHeight = map.tileHeight();
-
-        const originX = this.x * tileWidth + tileWidth / 2;
-        const originY = this.y * tileHeight + tileHeight / 2;
-
-        // If targetX/Y are tile coords, convert to pixels
-
-        const targetPixelX = targetX * tileWidth + tileWidth / 2;
-        const targetPixelY = targetY * tileHeight + tileHeight / 2;
-
-
-        const laserPath = [
-            { x: 0, y: 0, flag: "middle" },    // starts at event
-            { x: 3, y: 0, flag: "middle" },   // 3 tiles to the right of event
-            { x: 5, y: 2, flag: "end" }       // 2 tiles down from previous point
-        ];
-
-        
-        new LaserBeamline(1, 8, "#ff0000ff", 6, 20, "center", 0).addToMap();
-
-        //const laser = new LaserBeam(1, 8);
-   
-      
-    };
-    Game_Event.prototype.killLaser2 = function () {
-        this._laser1.retract()
-    }
+ 
 
     Game_Event.prototype.rotateMirrorCW = function () {
         const order = [8, 9, 6, 3, 2, 1, 4, 7];
