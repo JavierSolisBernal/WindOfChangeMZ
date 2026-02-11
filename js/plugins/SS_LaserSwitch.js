@@ -741,7 +741,7 @@
                 const vnorm = this._dirToVector(m);
                 if (vin.x * vnorm.x + vin.y * vnorm.y >= 0) return null;
             }
-            
+
             // Horizontal mirror (←→)
             if (m === 4 || m === 6) return { 8: 2, 2: 8, 7: 1, 9: 3, 1: 7, 3: 9, 4: 4, 6: 6 }[inDir] || inDir;
 
@@ -819,327 +819,411 @@
     }
 
 
-class LaserBeamline extends PIXI.Container {
+    class LaserBeamline extends PIXI.Container {
 
-    // ==================================================
-    // STATIC STORAGE (DATA, NOT PIXI OBJECTS)
-    // ==================================================
-    static _saved = new Map();   // persistent laser configs (per map)
-    static _active = new Map();  // live PIXI instances (current Scene_Map only)
+        // ==================================================
+        // STATIC STORAGE (DATA, NOT PIXI OBJECTS)
+        // ==================================================
+        static _saved = new Map();   // persistent laser configs (per map)
+        static _active = new Map();  // live PIXI instances (current Scene_Map only)
 
-    static _key(mapId, eventId, slot) {
-        return `${mapId}:${eventId}:${slot}`;
-    }
-
-    // ==================================================
-    // STATIC HELPERS
-    // ==================================================
-    static kill(mapId, eventId, slot = 0) {
-        const key = this._key(mapId, eventId, slot);
-        const laser = this._active.get(key);
-        if (laser) laser.killLaser();
-        this._saved.delete(key);
-    }
-
-    static killAll() {
-        for (const laser of this._active.values()) {
-            laser.killLaser(true);
+        static _key(mapId, eventId, slot) {
+            return `${mapId}:${eventId}:${slot}`;
         }
-        this._active.clear();
-    }
 
-    static restoreForCurrentMap() {
-        const mapId = $gameMap.mapId();
-
-        for (const data of this._saved.values()) {
-            if (data.mapId !== mapId) continue;
-
-            const laser = new LaserBeamline(
-                data.eventId,
-                data.direction,
-                data.color,
-                data.width,
-                data.glowWidth,
-                data.startFlag,
-                data.slot
-            );
-            laser.addToMap();
+        // ==================================================
+        // STATIC HELPERS
+        // ==================================================
+        static kill(mapId, eventId, slot = 0) {
+            const key = this._key(mapId, eventId, slot);
+            const laser = this._active.get(key);
+            if (laser) laser.killLaser();
+            this._saved.delete(key);
         }
-    }
 
-    static destroyVisualsOnly() {
-        for (const laser of this._active.values()) {
-            laser.parent?.removeChild(laser);
-            laser.destroy({ children: true });
+        static killAll() {
+            for (const laser of this._active.values()) {
+                laser.killLaser(true);
+            }
+            this._active.clear();
         }
-        this._active.clear();
-    }
 
-    // ==================================================
-    // CONSTRUCTOR
-    // ==================================================
-    constructor(
-        eventId,
-        direction = 8,
-        color = "#ff0000ff",
-        width = 6,
-        glowWidth = 20,
-        startFlag = "center",
-        slot = 0
-    ) {
-        super();
+        static restoreForCurrentMap() {
+            const mapId = $gameMap.mapId();
 
-        this._mapId = $gameMap.mapId();
-        this._eventId = eventId;
-        this._slot = slot;
-        this._direction = direction;
-        this._startFlag = startFlag;
+            for (const data of this._saved.values()) {
+                if (data.mapId !== mapId) continue;
 
-        const key = LaserBeamline._key(this._mapId, eventId, slot);
+                const laser = new LaserBeamline(
+                    data.eventId,
+                    data.direction,
+                    data.color,
+                    data.width,
+                    data.glowWidth,
+                    data.startFlag,
+                    data.slot
+                );
+                laser.addToMap();
+            }
+        }
 
-        // store DATA (persistent)
-        LaserBeamline._saved.set(key, {
-            mapId: this._mapId,
+        static destroyVisualsOnly() {
+            for (const laser of this._active.values()) {
+                laser.parent?.removeChild(laser);
+                laser.destroy({ children: true });
+            }
+            this._active.clear();
+        }
+
+        // ==================================================
+        // CONSTRUCTOR
+        // ==================================================
+        constructor(
             eventId,
-            slot,
-            direction,
-            color,
-            width,
-            glowWidth,
-            startFlag
-        });
+            direction = 8,
+            color = "#ff0000ff",
+            width = 6,
+            glowWidth = 20,
+            startFlag = "center",
+            slot = 0
+        ) {
+            super();
 
-        // replace active laser in this slot if needed
-        const existing = LaserBeamline._active.get(key);
-        if (existing) existing.killLaser(true);
-        LaserBeamline._active.set(key, this);
+            this._mapId = $gameMap.mapId();
+            this._eventId = eventId;
+            this._slot = slot;
+            this._direction = direction;
+            this._startFlag = startFlag;
 
-        // color
-        const hex = color.replace("#", "");
-        this._rgb = parseInt(hex.substring(0, 6), 16);
-        this._alpha = parseInt(hex.substring(6, 8), 16) / 255;
+            const key = LaserBeamline._key(this._mapId, eventId, slot);
 
-        this._width = width;
-        this._glowWidth = glowWidth;
+            // store DATA (persistent)
+            LaserBeamline._saved.set(key, {
+                mapId: this._mapId,
+                eventId,
+                slot,
+                direction,
+                color,
+                width,
+                glowWidth,
+                startFlag
+            });
 
-        // glow layers
-        this._glowLayers = [];
-        [
-            { w: glowWidth, a: 0.08 },
-            { w: glowWidth * 0.6, a: 0.16 },
-            { w: glowWidth * 0.35, a: 0.28 }
-        ].forEach(s => {
-            const g = new PIXI.Graphics();
-            this.addChild(g);
-            this._glowLayers.push({ g, s });
-        });
+            // replace active laser in this slot if needed
+            const existing = LaserBeamline._active.get(key);
+            if (existing) existing.killLaser(true);
+            LaserBeamline._active.set(key, this);
 
-        this._beam = new PIXI.Graphics();
-        this.addChild(this._beam);
-    }
+            // color
+            const hex = color.replace("#", "");
+            this._rgb = parseInt(hex.substring(0, 6), 16);
+            this._alpha = parseInt(hex.substring(6, 8), 16) / 255;
 
-    // ==================================================
-    // LIFECYCLE
-    // ==================================================
-    addToMap() {
-        const scene = SceneManager._scene;
-        if (!(scene instanceof Scene_Map)) return;
+            this._width = width;
+            this._glowWidth = glowWidth;
 
-        const tilemap = scene._spriteset?._tilemap;
-        if (!tilemap) return;
+            // glow layers
+            this._glowLayers = [];
+            [
+                { w: glowWidth, a: 0.08 },
+                { w: glowWidth * 0.6, a: 0.16 },
+                { w: glowWidth * 0.35, a: 0.28 }
+            ].forEach(s => {
+                const g = new PIXI.Graphics();
+                this.addChild(g);
+                this._glowLayers.push({ g, s });
+            });
 
-        this.z = 3;
-        tilemap.addChild(this);
-        tilemap.children.sort((a, b) => (a.z || 0) - (b.z || 0));
-    }
+            this._beam = new PIXI.Graphics();
+            this.addChild(this._beam);
+        }
 
-    killLaser(silent = false) {
-        this._beam?.clear();
-        this._glowLayers?.forEach(o => o.g.clear());
+        // ==================================================
+        // LIFECYCLE
+        // ==================================================
+        addToMap() {
+            const scene = SceneManager._scene;
+            if (!(scene instanceof Scene_Map)) return;
 
-        if (this.parent) this.parent.removeChild(this);
-        this.destroy({ children: true });
+            const tilemap = scene._spriteset?._tilemap;
+            if (!tilemap) return;
 
-        if (!silent) {
-            LaserBeamline._saved.delete(
+            this.z = 3;
+            tilemap.addChild(this);
+            tilemap.children.sort((a, b) => (a.z || 0) - (b.z || 0));
+        }
+
+        killLaser(silent = false) {
+            this._beam?.clear();
+            this._glowLayers?.forEach(o => o.g.clear());
+
+            if (this.parent) this.parent.removeChild(this);
+            this.destroy({ children: true });
+
+            if (!silent) {
+                LaserBeamline._saved.delete(
+                    LaserBeamline._key(this._mapId, this._eventId, this._slot)
+                );
+            }
+
+            LaserBeamline._active.delete(
                 LaserBeamline._key(this._mapId, this._eventId, this._slot)
             );
         }
 
-        LaserBeamline._active.delete(
-            LaserBeamline._key(this._mapId, this._eventId, this._slot)
-        );
-    }
-
-    /*
-    update() {
-        this.draw();
-    }
-    */
-
-    update() {
-        const ev = $gameMap.event(this._eventId);
-        if (!ev) return;
-
-        if (
-            this._lastX !== ev.x ||
-            this._lastY !== ev.y ||
-            this._lastOx !== SceneManager._scene._spriteset._tilemap.origin.x ||
-            this._lastOy !== SceneManager._scene._spriteset._tilemap.origin.y
-        ) {
-            this._lastX = ev.x;
-            this._lastY = ev.y;
-            this._lastOx = SceneManager._scene._spriteset._tilemap.origin.x;
-            this._lastOy = SceneManager._scene._spriteset._tilemap.origin.y;
+        /*
+        update() {
             this.draw();
         }
-    }
+        */
 
+        update() {
+            const ev = $gameMap.event(this._eventId);
+            if (!ev) return;
 
-    // ==================================================
-    // DRAWING
-    // ==================================================
-    draw() {
-        const scene = SceneManager._scene;
-        if (!(scene instanceof Scene_Map)) return;
-
-        const ev = $gameMap.event(this._eventId);
-        if (!ev) return;
-
-        const path = this._buildRayPath(ev.x, ev.y, this._direction);
-        if (path.length < 2) return;
-
-        const tilemap = scene._spriteset._tilemap;
-        const tw = $gameMap.tileWidth();
-        const th = $gameMap.tileHeight();
-        const ox = tilemap.origin.x;
-        const oy = tilemap.origin.y;
-
-        this._beam.clear();
-        this._glowLayers.forEach(o => o.g.clear());
-
-        for (let i = 0; i < path.length - 1; i++) {
-            const a = path[i];
-            const b = path[i + 1];
-
-            const dx = Math.sign(b.x - a.x);
-            const dy = Math.sign(b.y - a.y);
-
-            const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : null);
-            const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? "end" : null);
-
-            const x1 = (ev.x + a.x) * tw + p1.x - ox;
-            const y1 = (ev.y + a.y) * th + p1.y - oy;
-            const x2 = (ev.x + b.x) * tw + p2.x - ox;
-            const y2 = (ev.y + b.y) * th + p2.y - oy;
-
-            this._beam.lineStyle(this._width, this._rgb, this._alpha);
-            this._beam.moveTo(x1, y1);
-            this._beam.lineTo(x2, y2);
-
-            this._beam.lineStyle(this._width * 0.45, 0xffffff, 1);
-            this._beam.moveTo(x1, y1);
-            this._beam.lineTo(x2, y2);
-
-            this._glowLayers.forEach(o => {
-                o.g.lineStyle(o.s.w, this._rgb, o.s.a * this._alpha);
-                o.g.moveTo(x1, y1);
-                o.g.lineTo(x2, y2);
-            });
-        }
-    }
-
-    // ==================================================
-    // HELPERS
-    // ==================================================
-    _tileAnchor(p, dx, dy, tw, th, flag) {
-        flag = flag || p.flag || "center";
-        let ax = tw / 2;
-        let ay = th / 2;
-
-        if (flag === "start") {
-            if (dx) ax = dx > 0 ? 0 : tw;
-            if (dy) ay = dy > 0 ? 0 : th;
-        } else if (flag === "end") {
-            if (dx) ax = dx > 0 ? tw : 0;
-            if (dy) ay = dy > 0 ? th : 0;
-        }
-        return { x: ax, y: ay };
-    }
-
-    _dirToVector(dir) {
-        return {
-            1: { x: 1, y: 1 },
-            2: { x: 0, y: 1 },
-            3: { x: -1, y: 1 },
-            4: { x: -1, y: 0 },
-            6: { x: 1, y: 0 },
-            7: { x: -1, y: -1 },
-            8: { x: 0, y: -1 },
-            9: { x: 1, y: -1 }
-        }[dir] || { x: 0, y: -1 };
-    }
-
-    _buildRayPath(startX, startY, dir) {
-        const v = this._dirToVector(dir);
-        const path = [{ x: 0, y: 0, flag: "start" }];
-        let x = 0, y = 0;
-
-        while (true) {
-            x += v.x;
-            y += v.y;
-
-            if (!$gameMap.isValid(startX + x, startY + y)) {
-                path[path.length - 1].flag = "end";
-                break;
+            if (
+                this._lastX !== ev.x ||
+                this._lastY !== ev.y ||
+                this._lastOx !== SceneManager._scene._spriteset._tilemap.origin.x ||
+                this._lastOy !== SceneManager._scene._spriteset._tilemap.origin.y
+            ) {
+                this._lastX = ev.x;
+                this._lastY = ev.y;
+                this._lastOx = SceneManager._scene._spriteset._tilemap.origin.x;
+                this._lastOy = SceneManager._scene._spriteset._tilemap.origin.y;
+                this.draw();
             }
-            path.push({ x, y });
         }
-        return path;
+
+
+        // ==================================================
+        // DRAWING
+        // ==================================================
+        draw() {
+            const scene = SceneManager._scene;
+            if (!(scene instanceof Scene_Map)) return;
+
+            const ev = $gameMap.event(this._eventId);
+            if (!ev) return;
+
+            const path = this._buildRayPath(ev.x, ev.y, this._direction);
+            if (path.length < 2) return;
+
+            const tilemap = scene._spriteset._tilemap;
+            const tw = $gameMap.tileWidth();
+            const th = $gameMap.tileHeight();
+            const ox = tilemap.origin.x;
+            const oy = tilemap.origin.y;
+
+            this._beam.clear();
+            this._glowLayers.forEach(o => o.g.clear());
+
+            for (let i = 0; i < path.length - 1; i++) {
+                const a = path[i];
+                const b = path[i + 1];
+
+                const dx = Math.sign(b.x - a.x);
+                const dy = Math.sign(b.y - a.y);
+
+                const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : null);
+                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? "end" : null);
+
+                const x1 = (ev.x + a.x) * tw + p1.x - ox;
+                const y1 = (ev.y + a.y) * th + p1.y - oy;
+                const x2 = (ev.x + b.x) * tw + p2.x - ox;
+                const y2 = (ev.y + b.y) * th + p2.y - oy;
+
+                this._beam.lineStyle(this._width, this._rgb, this._alpha);
+                this._beam.moveTo(x1, y1);
+                this._beam.lineTo(x2, y2);
+
+                this._beam.lineStyle(this._width * 0.45, 0xffffff, 1);
+                this._beam.moveTo(x1, y1);
+                this._beam.lineTo(x2, y2);
+
+                this._glowLayers.forEach(o => {
+                    o.g.lineStyle(o.s.w, this._rgb, o.s.a * this._alpha);
+                    o.g.moveTo(x1, y1);
+                    o.g.lineTo(x2, y2);
+                });
+            }
+        }
+
+        // ==================================================
+        // HELPERS
+        // ==================================================
+        _tileAnchor(p, dx, dy, tw, th, flag) {
+            flag = flag || p.flag || "center";
+            let ax = tw / 2;
+            let ay = th / 2;
+
+            if (flag === "start") {
+                if (dx) ax = dx > 0 ? 0 : tw;
+                if (dy) ay = dy > 0 ? 0 : th;
+            } else if (flag === "end") {
+                if (dx) ax = dx > 0 ? tw : 0;
+                if (dy) ay = dy > 0 ? th : 0;
+            }
+            return { x: ax, y: ay };
+        }
+
+        _dirToVector(dir) {
+            return {
+                1: { x: 1, y: 1 },
+                2: { x: 0, y: 1 },
+                3: { x: -1, y: 1 },
+                4: { x: -1, y: 0 },
+                6: { x: 1, y: 0 },
+                7: { x: -1, y: -1 },
+                8: { x: 0, y: -1 },
+                9: { x: 1, y: -1 }
+            }[dir] || { x: 0, y: -1 };
+        }
+
+        _buildRayPath(startX, startY, dir) {
+            const v = this._dirToVector(dir);
+            const path = [{ x: 0, y: 0, flag: "start" }];
+            let x = 0, y = 0;
+
+            while (true) {
+                x += v.x;
+                y += v.y;
+
+                if (!$gameMap.isValid(startX + x, startY + y)) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+                path.push({ x, y });
+            }
+            return path;
+        }
     }
-}
+
+    // ==================================================
+    // Extend Game_Temp with pending laser spawns
+    // ==================================================
+    Game_Temp.prototype.queueLaserForMap = function (
+        mapId,
+        eventId,
+        direction = 8,
+        slot = 0,
+        color = "#ff0000ff",
+        width = 6,
+        glowWidth = 20,
+        startFlag = "center",
+
+    ) {
+        this.pendingLaserSpawns = this.pendingLaserSpawns || [];
+        this.pendingLaserSpawns.push({
+            mapId,
+            eventId,
+            direction,
+            color,
+            width,
+            glowWidth,
+            startFlag,
+            slot
+        });
+    };
+
+
+  // ==================================================
+    // Extend Game_Temp with pending laser spawns
+    // ==================================================
+    Game_System.prototype.queueLaserForMap = function (
+        mapId,
+        eventId,
+        direction = 8,
+        slot = 0,
+        color = "#ff0000ff",
+        width = 6,
+        glowWidth = 20,
+        startFlag = "center",
+
+    ) {
+        this.pendingLaserSpawns = this.pendingLaserSpawns || [];
+        this.pendingLaserSpawns.push({
+            mapId,
+            eventId,
+            direction,
+            color,
+            width,
+            glowWidth,
+            startFlag,
+            slot
+        });
+    };
+
 
  
-// destroy visuals when leaving Scene_Map (menu, battle, etc.)
-(() => {
-    const _Scene_Map_terminate = Scene_Map.prototype.terminate;
-    Scene_Map.prototype.terminate = function() {
-        LaserBeamline.destroyVisualsOnly();
-        _Scene_Map_terminate.call(this);
-    };
-})();
 
-// rebuild lasers when returning to map
-(() => {
+   
+
+    // ==================================================
+    // Check and spawn queued lasers when entering a map
+    // ==================================================
     const _Scene_Map_start = Scene_Map.prototype.start;
-    Scene_Map.prototype.start = function() {
+    Scene_Map.prototype.start = function () {
         _Scene_Map_start.call(this);
-        LaserBeamline.restoreForCurrentMap();
+
+        const pending = $gameTemp.pendingLaserSpawns;
+        if (!pending || pending.length === 0) return;
+
+        // Filter for lasers meant for the current map
+        const mapId = $gameMap.mapId();
+        const toSpawn = pending.filter(l => l.mapId === mapId);
+
+        // Spawn them
+        toSpawn.forEach(data => {
+            new LaserBeamline(data.eventId, data.direction, data.color, data.width, data.glowWidth, data.startFlag, data.slot).addToMap();
+
+        });
+
+        // Remove spawned lasers from pending
+        $gameTemp.pendingLaserSpawns = pending.filter(l => l.mapId !== mapId);
     };
-})();
 
 
-const _Spriteset_Map_update = Spriteset_Map.prototype.update;
-Spriteset_Map.prototype.update = function() {
-    _Spriteset_Map_update.call(this);
-    for (const laser of LaserBeamline._active.values()) {
-        laser.update();
+    // destroy visuals when leaving Scene_Map (menu, battle, etc.)
+    (() => {
+        const _Scene_Map_terminate = Scene_Map.prototype.terminate;
+        Scene_Map.prototype.terminate = function () {
+            LaserBeamline.destroyVisualsOnly();
+            _Scene_Map_terminate.call(this);
+        };
+    })();
+
+    // rebuild lasers when returning to map
+    (() => {
+        const _Scene_Map_start = Scene_Map.prototype.start;
+        Scene_Map.prototype.start = function () {
+            _Scene_Map_start.call(this);
+            LaserBeamline.restoreForCurrentMap();
+        };
+    })();
+
+
+    const _Spriteset_Map_update = Spriteset_Map.prototype.update;
+    Spriteset_Map.prototype.update = function () {
+        _Spriteset_Map_update.call(this);
+        for (const laser of LaserBeamline._active.values()) {
+            laser.update();
+        }
+    };
+
+
+
+    Game_Event.prototype.spawnLaser = function (slot, direction, color = "#00ffccff", width = 6, glowWidth = 20, position = 'center') {
+        new LaserBeamline(1, direction, color, width, glowWidth, position, slot).addToMap();
     }
-};
-
-
-
-    Game_Event.prototype.spawnLaser=function(slot, direction, color="#00ffccff", width=6, glowWidth=20, position='center'){
-    new LaserBeamline(1, direction, color, width, glowWidth, position, slot).addToMap(); 
-    }
-    Game_Event.prototype.killLaser=function(slot){
+    Game_Event.prototype.killLaser = function (slot) {
         LaserBeamline.kill($gameMap.mapId(), 1, slot);
     }
 
-    
 
- 
- 
+
+
+
 
     Game_Event.prototype.rotateMirrorCW = function () {
         const order = [8, 9, 6, 3, 2, 1, 4, 7];
