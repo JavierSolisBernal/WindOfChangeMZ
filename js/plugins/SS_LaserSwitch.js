@@ -844,17 +844,21 @@
 
             this._beam.clear();
             this._glowLayers.forEach(o => o.g.clear());
-
+            
             for (let i = 0; i < path.length - 1; i++) {
+         
+                if (path[i].tunnel && path[i + 1].tunnel) continue;
                 const a = path[i];
                 const b = path[i + 1];
 
                 const dx = Math.sign(b.x - a.x);
                 const dy = Math.sign(b.y - a.y);
 
-                const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : null);
-                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? "end" : null);
-
+                let test=path[i].tunnel? "start":null;
+                let test2=path[i+1].tunnel? "start":null;
+                const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : test);
+                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? "end" : test2);
+                
                 const x1 = (ev.x + a.x) * tw + p1.x - ox;
                 const y1 = (ev.y + a.y) * th + p1.y - oy;
                 const x2 = (ev.x + b.x) * tw + p2.x - ox;
@@ -905,7 +909,7 @@
             }[dir] || { x: 0, y: -1 };
         }
 
-        _buildRayPath(startX, startY, dir) {
+        _buildRayPathbackup(startX, startY, dir) {
             const v = this._dirToVector(dir);
             const path = [{ x: 0, y: 0, flag: "start" }];
             let x = 0, y = 0;
@@ -923,6 +927,179 @@
 
             return path;
         }
+
+        _buildRayPath2(startX, startY, dir) {
+            const v = this._dirToVector(dir);
+            const path = [{ x: 0, y: 0, flag: "start" }];
+
+            let x = 0;
+            let y = 0;
+
+            const regionOverride = [1, 3, 12];
+            const maxSteps = Math.max($gameMap.width(), $gameMap.height());
+
+            const reverseDir = d => ({ 2: 8, 8: 2, 4: 6, 6: 4 }[d]);
+
+            for (let step = 0; step < maxSteps; step++) {
+
+                const curX = startX + x;
+                const curY = startY + y;
+
+                const nextX = curX + v.x;
+                const nextY = curY + v.y;
+
+                if (!$gameMap.isValid(nextX, nextY)) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+
+                const regionId = $gameMap.regionId(nextX, nextY);
+                const regionPassable = regionOverride.includes(regionId);
+
+                let passable = true;
+
+                // ------------------------
+                // STRAIGHT MOVEMENT
+                // ------------------------
+                if (v.x === 0 || v.y === 0) {
+
+                    const dirCode =
+                        v.x > 0 ? 6 :
+                            v.x < 0 ? 4 :
+                                v.y > 0 ? 2 :
+                                    8;
+
+                    const forward =
+                        $gameMap.isPassable(curX, curY, dirCode);
+
+                    const backward =
+                        $gameMap.isPassable(nextX, nextY, reverseDir(dirCode));
+
+                    passable = forward && backward;
+                }
+
+                // ------------------------
+                // DIAGONAL MOVEMENT
+                // ------------------------
+                else {
+
+                    const horDir = v.x > 0 ? 6 : 4;
+                    const verDir = v.y > 0 ? 2 : 8;
+
+                    const horForward =
+                        $gameMap.isPassable(curX, curY, horDir) &&
+                        $gameMap.isPassable(curX + v.x, curY, reverseDir(horDir));
+
+                    const verForward =
+                        $gameMap.isPassable(curX, curY, verDir) &&
+                        $gameMap.isPassable(curX, curY + v.y, reverseDir(verDir));
+
+                    passable = horForward && verForward;
+                }
+
+                // Stop BEFORE blocked tile unless region override
+                if (!passable && !regionPassable) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+
+                x += v.x;
+                y += v.y;
+
+                path.push({ x, y });
+            }
+
+            return path;
+        }
+
+        _buildRayPath(startX, startY, dir) {
+            const v = this._dirToVector(dir);
+            const path = [{ x: 0, y: 0, flag: "start", tunnel: false }];
+
+            let x = 0;
+            let y = 0;
+
+            const regionTunnel = [1, 3, 12];
+            const maxSteps = Math.max($gameMap.width(), $gameMap.height());
+            const reverseDir = d => ({ 2: 8, 8: 2, 4: 6, 6: 4 }[d]);
+
+            for (let step = 0; step < maxSteps; step++) {
+
+                const curX = startX + x;
+                const curY = startY + y;
+
+                const nextX = curX + v.x;
+                const nextY = curY + v.y;
+
+                if (!$gameMap.isValid(nextX, nextY)) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+
+                const curRegion = $gameMap.regionId(curX, curY);
+                const nextRegion = $gameMap.regionId(nextX, nextY);
+
+                const isTunnel =
+                    regionTunnel.includes(curRegion) ||
+                    regionTunnel.includes(nextRegion);
+
+                // 🔥 Tunnel tiles ignore ALL passability
+                if (isTunnel) {
+                    x += v.x;
+                    y += v.y;
+                    path.push({ x, y, tunnel: true });
+                    continue;
+                }
+
+                let canMove = false;
+
+                // STRAIGHT
+                if (v.x === 0 || v.y === 0) {
+                    const dirCode =
+                        v.x > 0 ? 6 :
+                            v.x < 0 ? 4 :
+                                v.y > 0 ? 2 :
+                                    8;
+
+                    canMove =
+                        $gameMap.isPassable(curX, curY, dirCode) &&
+                        $gameMap.isPassable(nextX, nextY, reverseDir(dirCode));
+                }
+
+                // DIAGONAL
+                else {
+                    /*
+                    const horDir = v.x > 0 ? 6 : 4;
+                    const verDir = v.y > 0 ? 2 : 8;
+
+                    const horPass =
+                        $gameMap.isPassable(curX, curY, horDir) &&
+                        $gameMap.isPassable(curX + v.x, curY, reverseDir(horDir));
+
+                    const verPass =
+                        $gameMap.isPassable(curX, curY, verDir) &&
+                        $gameMap.isPassable(curX, curY + v.y, reverseDir(verDir));
+
+                    canMove = horPass && verPass;
+                    */
+                   canMove=true
+                }
+
+                if (!canMove) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+
+                x += v.x;
+                y += v.y;
+                path.push({ x, y, tunnel: false });
+            }
+
+            return path;
+        }
+
+
+
     }
 
 
