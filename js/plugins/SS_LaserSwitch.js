@@ -640,8 +640,22 @@
             }
         }
     }
+    const reflectionRegions = {
+        20: "180",    // region ID 20 reflects 180°
+        21: "90R",   // region ID 21 reflects 90° right
+        22: "90L",   // region ID 22 reflects 90° left
+        23: "45R",   // region ID 23 reflects 45° right
+        24: "45L",    // region ID 24 reflects 45° left
+        25: "B"
+    };
 
-
+    const reflectionMap = {
+        "180": { 2: 8, 4: 6, 6: 4, 8: 2, 1: 9, 3: 7, 7: 3, 9: 1 },    // 180° reverse
+        "90R": { 8: 3, 2: 6, 4: 8, 6: 2, 1: 6, 3: 8, 7: 2, 9: 4 },    // 90° right
+        "90L": { 8: 1, 2: 4, 4: 2, 6: 8, 1: 4, 3: 2, 7: 6, 9: 8 },    // 90° left
+        "45R": { 8: 1, 2: 3, 4: 7, 6: 9, 1: 6, 3: 8, 7: 2, 9: 4 },    // 45° right
+        "45L": { 8: 3, 2: 1, 4: 9, 6: 7, 1: 2, 3: 4, 7: 8, 9: 6 }     // 45° left
+    };
     class LaserBeamline extends PIXI.Container {
 
         // ==================================================
@@ -755,6 +769,8 @@
 
             // Glow
             this._glowLayers = [];
+
+            
             [
                 { w: glowWidth, a: 0.08 },
                 { w: glowWidth * 0.6, a: 0.16 },
@@ -764,6 +780,8 @@
                 this.addChild(g);
                 this._glowLayers.push({ g, s });
             });
+            
+
 
             this._beam = new PIXI.Graphics();
             this.addChild(this._beam);
@@ -844,9 +862,12 @@
 
             this._beam.clear();
             this._glowLayers.forEach(o => o.g.clear());
-            
+
+            // Track already drawn segments to prevent glow stacking
+            const drawnSegments = new Set();
+
             for (let i = 0; i < path.length - 1; i++) {
-         
+
                 if (path[i].tunnel && path[i + 1].tunnel) continue;
                 const a = path[i];
                 const b = path[i + 1];
@@ -854,11 +875,17 @@
                 const dx = Math.sign(b.x - a.x);
                 const dy = Math.sign(b.y - a.y);
 
-                let test=path[i].tunnel? "start":null;
-                let test2=path[i+1].tunnel? "start":null;
+                 // Create a unique key for this segment
+                const segKey = `${a.x},${a.y},${dx},${dy}`;
+                if (drawnSegments.has(segKey)) continue; // skip overlapping segment
+                drawnSegments.add(segKey);
+
+                let test = path[i].tunnel ? "start" : null;
+                let test2 = path[i + 1].tunnel ? "start" : null;
+                let test3 = path[i + 1].flag ?? "end"
                 const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : test);
-                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? "end" : test2);
-                
+                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? test3 : test2);
+
                 const x1 = (ev.x + a.x) * tw + p1.x - ox;
                 const y1 = (ev.y + a.y) * th + p1.y - oy;
                 const x2 = (ev.x + b.x) * tw + p2.x - ox;
@@ -898,9 +925,9 @@
 
         _dirToVector(dir) {
             return {
-                1: { x: 1, y: 1 },
+                3: { x: 1, y: 1 },
                 2: { x: 0, y: 1 },
-                3: { x: -1, y: 1 },
+                1: { x: -1, y: 1 },
                 4: { x: -1, y: 0 },
                 6: { x: 1, y: 0 },
                 7: { x: -1, y: -1 },
@@ -909,125 +936,24 @@
             }[dir] || { x: 0, y: -1 };
         }
 
-        _buildRayPathbackup(startX, startY, dir) {
-            const v = this._dirToVector(dir);
-            const path = [{ x: 0, y: 0, flag: "start" }];
-            let x = 0, y = 0;
 
-            while (true) {
-                x += v.x;
-                y += v.y;
-
-                if (!$gameMap.isValid(startX + x, startY + y)) {
-                    path[path.length - 1].flag = "end";
-                    break;
-                }
-                path.push({ x, y });
-            }
-
-            return path;
-        }
 
         _buildRayPath2(startX, startY, dir) {
             const v = this._dirToVector(dir);
-            const path = [{ x: 0, y: 0, flag: "start" }];
-
-            let x = 0;
-            let y = 0;
-
-            const regionOverride = [1, 3, 12];
-            const maxSteps = Math.max($gameMap.width(), $gameMap.height());
-
-            const reverseDir = d => ({ 2: 8, 8: 2, 4: 6, 6: 4 }[d]);
-
-            for (let step = 0; step < maxSteps; step++) {
-
-                const curX = startX + x;
-                const curY = startY + y;
-
-                const nextX = curX + v.x;
-                const nextY = curY + v.y;
-
-                if (!$gameMap.isValid(nextX, nextY)) {
-                    path[path.length - 1].flag = "end";
-                    break;
-                }
-
-                const regionId = $gameMap.regionId(nextX, nextY);
-                const regionPassable = regionOverride.includes(regionId);
-
-                let passable = true;
-
-                // ------------------------
-                // STRAIGHT MOVEMENT
-                // ------------------------
-                if (v.x === 0 || v.y === 0) {
-
-                    const dirCode =
-                        v.x > 0 ? 6 :
-                            v.x < 0 ? 4 :
-                                v.y > 0 ? 2 :
-                                    8;
-
-                    const forward =
-                        $gameMap.isPassable(curX, curY, dirCode);
-
-                    const backward =
-                        $gameMap.isPassable(nextX, nextY, reverseDir(dirCode));
-
-                    passable = forward && backward;
-                }
-
-                // ------------------------
-                // DIAGONAL MOVEMENT
-                // ------------------------
-                else {
-
-                    const horDir = v.x > 0 ? 6 : 4;
-                    const verDir = v.y > 0 ? 2 : 8;
-
-                    const horForward =
-                        $gameMap.isPassable(curX, curY, horDir) &&
-                        $gameMap.isPassable(curX + v.x, curY, reverseDir(horDir));
-
-                    const verForward =
-                        $gameMap.isPassable(curX, curY, verDir) &&
-                        $gameMap.isPassable(curX, curY + v.y, reverseDir(verDir));
-
-                    passable = horForward && verForward;
-                }
-
-                // Stop BEFORE blocked tile unless region override
-                if (!passable && !regionPassable) {
-                    path[path.length - 1].flag = "end";
-                    break;
-                }
-
-                x += v.x;
-                y += v.y;
-
-                path.push({ x, y });
-            }
-
-            return path;
-        }
-
-        _buildRayPath(startX, startY, dir) {
-            const v = this._dirToVector(dir);
             const path = [{ x: 0, y: 0, flag: "start", tunnel: false }];
 
-            let x = 0;
-            let y = 0;
-
+            let x = 0, y = 0;
             const regionTunnel = [1, 3, 12];
+            const reflectionRegions = { 20: "90", 21: "45R", 22: "45L" };
             const maxSteps = Math.max($gameMap.width(), $gameMap.height());
+            const maxReflections = 10;
+            let reflectionCount = 0;
+
             const reverseDir = d => ({ 2: 8, 8: 2, 4: 6, 6: 4 }[d]);
 
             for (let step = 0; step < maxSteps; step++) {
-
                 const curX = startX + x;
                 const curY = startY + y;
-
                 const nextX = curX + v.x;
                 const nextY = curY + v.y;
 
@@ -1036,14 +962,10 @@
                     break;
                 }
 
-                const curRegion = $gameMap.regionId(curX, curY);
-                const nextRegion = $gameMap.regionId(nextX, nextY);
+                const curRegion = $gameMap.regionId(nextX, nextY);
 
-                const isTunnel =
-                    regionTunnel.includes(curRegion) ||
-                    regionTunnel.includes(nextRegion);
-
-                // 🔥 Tunnel tiles ignore ALL passability
+                // Tunnel tiles
+                const isTunnel = regionTunnel.includes(curRegion);
                 if (isTunnel) {
                     x += v.x;
                     y += v.y;
@@ -1051,52 +973,147 @@
                     continue;
                 }
 
-                let canMove = false;
+                // --- Add the next tile first ---
+                x += v.x;
+                y += v.y;
+                path.push({ x, y, tunnel: false });
 
-                // STRAIGHT
-                if (v.x === 0 || v.y === 0) {
-                    const dirCode =
-                        v.x > 0 ? 6 :
-                            v.x < 0 ? 4 :
-                                v.y > 0 ? 2 :
-                                    8;
-
-                    canMove =
-                        $gameMap.isPassable(curX, curY, dirCode) &&
-                        $gameMap.isPassable(nextX, nextY, reverseDir(dirCode));
+                // Reflection handling **after hitting the tile**
+                const reflectionType = reflectionRegions[curRegion];
+                if (reflectionType && reflectionCount < maxReflections) {
+                    reflectionCount++;
+                    if (reflectionType === "90") {
+                        v.x *= -1;
+                        v.y *= -1;
+                    } else if (reflectionType === "45R") {
+                        [v.x, v.y] = [v.y, -v.x]; // rotate 90° clockwise
+                    } else if (reflectionType === "45L") {
+                        [v.x, v.y] = [-v.y, v.x]; // rotate 90° counterclockwise
+                    }
                 }
 
-                // DIAGONAL
-                else {
-                    /*
+                // Check passability for **next tile in the new direction**
+                const nextNextX = startX + x + v.x;
+                const nextNextY = startY + y + v.y;
+
+                let canMove = false;
+
+                if (v.x === 0 || v.y === 0) { // Straight
+                    const dirCode = v.x > 0 ? 6 : v.x < 0 ? 4 : v.y > 0 ? 2 : 8;
+                    canMove = $gameMap.isPassable(startX + x, startY + y, dirCode) &&
+                        $gameMap.isPassable(nextNextX, nextNextY, reverseDir(dirCode));
+                } else { // Diagonal
                     const horDir = v.x > 0 ? 6 : 4;
                     const verDir = v.y > 0 ? 2 : 8;
-
-                    const horPass =
-                        $gameMap.isPassable(curX, curY, horDir) &&
-                        $gameMap.isPassable(curX + v.x, curY, reverseDir(horDir));
-
-                    const verPass =
-                        $gameMap.isPassable(curX, curY, verDir) &&
-                        $gameMap.isPassable(curX, curY + v.y, reverseDir(verDir));
-
+                    const horPass = $gameMap.isPassable(startX + x, startY + y, horDir) &&
+                        $gameMap.isPassable(startX + x + v.x, startY + y, reverseDir(horDir));
+                    const verPass = $gameMap.isPassable(startX + x, startY + y, verDir) &&
+                        $gameMap.isPassable(startX + x, startY + y + v.y, reverseDir(verDir));
                     canMove = horPass && verPass;
-                    */
-                   canMove=true
                 }
 
                 if (!canMove) {
                     path[path.length - 1].flag = "end";
                     break;
                 }
-
-                x += v.x;
-                y += v.y;
-                path.push({ x, y, tunnel: false });
             }
 
             return path;
         }
+
+        _buildRayPath(startX, startY, dir) {
+            // Map RPG Maker directions to x/y vectors
+            const _dirToVector = (dir) => ({
+                1: { x: -1, y: 1 }, 2: { x: 0, y: 1 }, 3: { x: 1, y: 1 },
+                4: { x: -1, y: 0 }, 6: { x: 1, y: 0 },
+                7: { x: -1, y: -1 }, 8: { x: 0, y: -1 }, 9: { x: 1, y: -1 }
+            }[dir] || { x: 0, y: -1 });
+
+            let v = _dirToVector(dir);
+            const path = [{ x: 0, y: 0, flag: "start", tunnel: false }];
+
+            let x = 0, y = 0;
+            const maxSteps = Math.max($gameMap.width(), $gameMap.height());
+            const maxReflections = 10;
+            let reflectionCount = 0;
+
+            // Tiles that are tunnels ignore passability
+            const regionTunnel = [1, 3, 12];
+
+
+
+            const reverseDir = d => ({ 2: 8, 8: 2, 4: 6, 6: 4 }[d]);
+
+            for (let step = 0; step < maxSteps; step++) {
+                const curX = startX + x;
+                const curY = startY + y;
+                const nextX = curX + v.x;
+                const nextY = curY + v.y;
+
+                // Stop if out of map bounds
+                if (!$gameMap.isValid(nextX, nextY)) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+
+                // Check if the next tile is a tunnel
+                const nextRegion = $gameMap.regionId(nextX, nextY);
+                const isTunnel = regionTunnel.includes(nextRegion);
+
+                // Move to next tile
+                x += v.x;
+                y += v.y;
+                path.push({ x, y, tunnel: isTunnel });
+
+                // If tunnel, skip passability checks
+                if (isTunnel) continue;
+
+                // Check for reflection
+                const reflectionType = reflectionRegions[nextRegion];
+
+                if (reflectionType == "B") {
+                    path[path.length - 1].flag = "center";
+                    break;
+                }
+
+                if (reflectionType && reflectionCount < maxReflections) {
+                    reflectionCount++;
+                    const newDir = reflectionMap[reflectionType][dir];
+                    if (newDir) {
+                        dir = newDir;               // update current direction
+                        v = _dirToVector(dir);      // update vector
+                    }
+                }
+
+                // Check passability for the next step
+                const nextNextX = startX + x + v.x;
+                const nextNextY = startY + y + v.y;
+                let canMove = false;
+
+                if (v.x === 0 || v.y === 0) { // Straight
+                    const dirCode = v.x > 0 ? 6 : v.x < 0 ? 4 : v.y > 0 ? 2 : 8;
+                    canMove = $gameMap.isPassable(startX + x, startY + y, dirCode) &&
+                        $gameMap.isPassable(nextNextX, nextNextY, reverseDir(dirCode));
+                } else { // Diagonal
+                    const horDir = v.x > 0 ? 6 : 4;
+                    const verDir = v.y > 0 ? 2 : 8;
+                    const horPass = $gameMap.isPassable(startX + x, startY + y, horDir) &&
+                        $gameMap.isPassable(startX + x + v.x, startY + y, reverseDir(horDir));
+                    const verPass = $gameMap.isPassable(startX + x, startY + y, verDir) &&
+                        $gameMap.isPassable(startX + x, startY + y + v.y, reverseDir(verDir));
+                    canMove = horPass && verPass;
+                }
+
+                // Stop if next tile is blocked
+                if (!canMove) {
+                    path[path.length - 1].flag = "end";
+                    break;
+                }
+            }
+
+            return path;
+        }
+
 
 
 
