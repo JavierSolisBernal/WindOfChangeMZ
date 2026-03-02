@@ -770,7 +770,7 @@
             // Glow
             this._glowLayers = [];
 
-            
+
             [
                 { w: glowWidth, a: 0.08 },
                 { w: glowWidth * 0.6, a: 0.16 },
@@ -780,7 +780,7 @@
                 this.addChild(g);
                 this._glowLayers.push({ g, s });
             });
-            
+
 
 
             this._beam = new PIXI.Graphics();
@@ -875,7 +875,7 @@
                 const dx = Math.sign(b.x - a.x);
                 const dy = Math.sign(b.y - a.y);
 
-                 // Create a unique key for this segment
+                // Create a unique key for this segment
                 const segKey = `${a.x},${a.y},${dx},${dy}`;
                 if (drawnSegments.has(segKey)) continue; // skip overlapping segment
                 drawnSegments.add(segKey);
@@ -1059,12 +1059,13 @@
                 // Check if the next tile is a tunnel
                 const nextRegion = $gameMap.regionId(nextX, nextY);
                 const isTunnel = regionTunnel.includes(nextRegion);
-
+                
                 // Move to next tile
                 x += v.x;
                 y += v.y;
                 path.push({ x, y, tunnel: isTunnel });
-
+                
+                
                 // If tunnel, skip passability checks
                 if (isTunnel) continue;
 
@@ -1092,16 +1093,22 @@
 
                 if (v.x === 0 || v.y === 0) { // Straight
                     const dirCode = v.x > 0 ? 6 : v.x < 0 ? 4 : v.y > 0 ? 2 : 8;
-                    canMove = $gameMap.isPassable(startX + x, startY + y, dirCode) &&
-                        $gameMap.isPassable(nextNextX, nextNextY, reverseDir(dirCode));
+                    canMove = $gameMap.isPassable(nextX, nextY, reverseDir(dirCode));
                 } else { // Diagonal
                     const horDir = v.x > 0 ? 6 : 4;
                     const verDir = v.y > 0 ? 2 : 8;
-                    const horPass = $gameMap.isPassable(startX + x, startY + y, horDir) &&
-                        $gameMap.isPassable(startX + x + v.x, startY + y, reverseDir(horDir));
-                    const verPass = $gameMap.isPassable(startX + x, startY + y, verDir) &&
-                        $gameMap.isPassable(startX + x, startY + y + v.y, reverseDir(verDir));
+
+                    const horPass = $gameMap.isPassable(nextX, nextY, horDir)
+                    const verPass = $gameMap.isPassable(nextX, nextY, verDir)
                     canMove = horPass && verPass;
+
+                    if (!canMove) {
+                        path.pop();
+                        path[path.length - 1].flag = "end";
+                        break;
+                    }
+
+
                 }
 
                 // Stop if next tile is blocked
