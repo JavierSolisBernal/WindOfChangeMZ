@@ -656,6 +656,19 @@
         "45R": { 8: 1, 2: 3, 4: 7, 6: 9, 1: 6, 3: 8, 7: 2, 9: 4 },    // 45° right
         "45L": { 8: 3, 2: 1, 4: 9, 6: 7, 1: 2, 3: 4, 7: 8, 9: 6 }     // 45° left
     };
+
+    const rainbowColors = {
+        red: "#FF0000FF",   // Red
+        orange: "#FF7F00FF",   // Orange
+        yellow: "#FFFF00FF",   // Yellow
+        green: "#00FF00FF",   // Green
+        blue: "#0000FFFF",   // Blue
+        indigo: "#4B0082FF",   // Indigo
+        violet: "#9400D3FF",  // Violet
+        white: "#FFFFFFFF", //White
+    };
+
+
     class LaserBeamline extends PIXI.Container {
 
         // ==================================================
@@ -851,8 +864,8 @@
             const ev = $gameMap.event(this._eventId);
             if (!ev) return;
 
-            const path = this._buildRayPath(ev.x, ev.y, this._direction);
-            if (path.length < 2) return;
+            const pathraw = this._buildRayPath(ev.x, ev.y, this._direction);
+            if (pathraw.length < 2) return;
 
             const tilemap = scene._spriteset._tilemap;
             const tw = $gameMap.tileWidth();
@@ -866,6 +879,17 @@
             // Track already drawn segments to prevent glow stacking
             const drawnSegments = new Set();
 
+
+            const path = pathraw.map((item, index, original) => {
+                if (index > 0 && original[index - 1].tunnel === true) {
+                    return { ...item, tunnel: true };
+                }
+
+                return item;
+            });
+
+
+
             for (let i = 0; i < path.length - 1; i++) {
 
                 if (path[i].tunnel && path[i + 1].tunnel) continue;
@@ -875,6 +899,15 @@
                 const dx = Math.sign(b.x - a.x);
                 const dy = Math.sign(b.y - a.y);
 
+                const pathcolor = path[i].color
+
+                let path_rgb = null
+                let path_alpha = null
+                if (pathcolor) {
+                    const path_hex = pathcolor.replace("#", "");
+                    path_rgb = parseInt(path_hex.substring(0, 6), 16);
+                    path_alpha = parseInt(path_hex.substring(6, 8), 16) / 255;
+                }
                 // Create a unique key for this segment
                 const segKey = `${a.x},${a.y},${dx},${dy}`;
                 if (drawnSegments.has(segKey)) continue; // skip overlapping segment
@@ -883,6 +916,8 @@
                 let test = path[i].tunnel ? "start" : null;
                 let test2 = path[i + 1].tunnel ? "start" : null;
                 let test3 = path[i + 1].flag ?? "end"
+
+
                 const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : test);
                 const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? test3 : test2);
 
@@ -891,16 +926,24 @@
                 const x2 = (ev.x + b.x) * tw + p2.x - ox;
                 const y2 = (ev.y + b.y) * th + p2.y - oy;
 
-                this._beam.lineStyle(this._width, this._rgb, this._alpha);
-                this._beam.moveTo(x1, y1);
-                this._beam.lineTo(x2, y2);
+                const rgb = path_rgb ?? this._rgb;
+                const alpha = path_alpha ?? this._alpha;
+
+
+                if (rgb !== 0xFFFFFF) {
+                    this._beam.lineStyle(this._width, rgb, alpha);
+                    this._beam.moveTo(x1, y1);
+                    this._beam.lineTo(x2, y2);
+                }
 
                 this._beam.lineStyle(this._width * 0.45, 0xffffff, 1);
                 this._beam.moveTo(x1, y1);
                 this._beam.lineTo(x2, y2);
 
+
+                const ww= rgb !== 0xFFFFFF? 1:0.5
                 this._glowLayers.forEach(o => {
-                    o.g.lineStyle(o.s.w, this._rgb, o.s.a * this._alpha);
+                    o.g.lineStyle(o.s.w*ww, rgb, o.s.a * alpha);
                     o.g.moveTo(x1, y1);
                     o.g.lineTo(x2, y2);
                 });
@@ -938,89 +981,6 @@
 
 
 
-        _buildRayPath2(startX, startY, dir) {
-            const v = this._dirToVector(dir);
-            const path = [{ x: 0, y: 0, flag: "start", tunnel: false }];
-
-            let x = 0, y = 0;
-            const regionTunnel = [1, 3, 12];
-            const reflectionRegions = { 20: "90", 21: "45R", 22: "45L" };
-            const maxSteps = Math.max($gameMap.width(), $gameMap.height());
-            const maxReflections = 10;
-            let reflectionCount = 0;
-
-            const reverseDir = d => ({ 2: 8, 8: 2, 4: 6, 6: 4 }[d]);
-
-            for (let step = 0; step < maxSteps; step++) {
-                const curX = startX + x;
-                const curY = startY + y;
-                const nextX = curX + v.x;
-                const nextY = curY + v.y;
-
-                if (!$gameMap.isValid(nextX, nextY)) {
-                    path[path.length - 1].flag = "end";
-                    break;
-                }
-
-                const curRegion = $gameMap.regionId(nextX, nextY);
-
-                // Tunnel tiles
-                const isTunnel = regionTunnel.includes(curRegion);
-                if (isTunnel) {
-                    x += v.x;
-                    y += v.y;
-                    path.push({ x, y, tunnel: true });
-                    continue;
-                }
-
-                // --- Add the next tile first ---
-                x += v.x;
-                y += v.y;
-                path.push({ x, y, tunnel: false });
-
-                // Reflection handling **after hitting the tile**
-                const reflectionType = reflectionRegions[curRegion];
-                if (reflectionType && reflectionCount < maxReflections) {
-                    reflectionCount++;
-                    if (reflectionType === "90") {
-                        v.x *= -1;
-                        v.y *= -1;
-                    } else if (reflectionType === "45R") {
-                        [v.x, v.y] = [v.y, -v.x]; // rotate 90° clockwise
-                    } else if (reflectionType === "45L") {
-                        [v.x, v.y] = [-v.y, v.x]; // rotate 90° counterclockwise
-                    }
-                }
-
-                // Check passability for **next tile in the new direction**
-                const nextNextX = startX + x + v.x;
-                const nextNextY = startY + y + v.y;
-
-                let canMove = false;
-
-                if (v.x === 0 || v.y === 0) { // Straight
-                    const dirCode = v.x > 0 ? 6 : v.x < 0 ? 4 : v.y > 0 ? 2 : 8;
-                    canMove = $gameMap.isPassable(startX + x, startY + y, dirCode) &&
-                        $gameMap.isPassable(nextNextX, nextNextY, reverseDir(dirCode));
-                } else { // Diagonal
-                    const horDir = v.x > 0 ? 6 : 4;
-                    const verDir = v.y > 0 ? 2 : 8;
-                    const horPass = $gameMap.isPassable(startX + x, startY + y, horDir) &&
-                        $gameMap.isPassable(startX + x + v.x, startY + y, reverseDir(horDir));
-                    const verPass = $gameMap.isPassable(startX + x, startY + y, verDir) &&
-                        $gameMap.isPassable(startX + x, startY + y + v.y, reverseDir(verDir));
-                    canMove = horPass && verPass;
-                }
-
-                if (!canMove) {
-                    path[path.length - 1].flag = "end";
-                    break;
-                }
-            }
-
-            return path;
-        }
-
         _buildRayPath(startX, startY, dir) {
             // Map RPG Maker directions to x/y vectors
             const _dirToVector = (dir) => ({
@@ -1043,7 +1003,7 @@
 
 
             const reverseDir = d => ({ 2: 8, 8: 2, 4: 6, 6: 4 }[d]);
-
+            let ColorLaser = null
             for (let step = 0; step < maxSteps; step++) {
                 const curX = startX + x;
                 const curY = startY + y;
@@ -1059,23 +1019,54 @@
                 // Check if the next tile is a tunnel
                 const nextRegion = $gameMap.regionId(nextX, nextY);
                 const isTunnel = regionTunnel.includes(nextRegion);
-                
+
                 // Move to next tile
                 x += v.x;
                 y += v.y;
-                path.push({ x, y, tunnel: isTunnel });
-                
-                
+                path.push({ x, y, tunnel: isTunnel, color: ColorLaser });
+
+
                 // If tunnel, skip passability checks
                 if (isTunnel) continue;
 
                 // Check for reflection
-                const reflectionType = reflectionRegions[nextRegion];
+                let reflectionType = reflectionRegions[nextRegion];
 
                 if (reflectionType == "B") {
+                    path[path.length - 1].tunnel = undefined
                     path[path.length - 1].flag = "center";
                     break;
                 }
+
+                //reflectionType = null;
+                const eventsOnTile = $gameMap.eventsXy(nextX, nextY);
+
+                for (const evOnTile of eventsOnTile) {
+                    if (evOnTile._priorityType === 1) { // only same-as-player
+                        const mirror = evOnTile.event().meta.mirror;
+                        const color = evOnTile.event().meta.color;
+                        if (mirror) reflectionType = mirror;
+                        if (color) {
+                            const name = color.trim().toLowerCase();
+                            let hex = rainbowColors[name] ?? color; // fallback to hex string
+
+                            hex = hex.startsWith("#") ? hex.slice(1) : hex;
+
+                            // Must be 6digits
+                            if (/^[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/.test(hex)) {
+                                ColorLaser = hex.substring(0, 6) + "FF";           // 0xRRGGBB
+                            } else {
+                                // fallback to red
+                                ColorLaser = "#FF0000FF";
+
+                            }
+                            if (mirror || color) break; // first valid condition wins
+                        }
+                    }
+                }
+                if (ColorLaser) path[path.length - 1].color = ColorLaser
+
+
 
                 if (reflectionType && reflectionCount < maxReflections) {
                     reflectionCount++;
@@ -1087,8 +1078,7 @@
                 }
 
                 // Check passability for the next step
-                const nextNextX = startX + x + v.x;
-                const nextNextY = startY + y + v.y;
+
                 let canMove = false;
 
                 if (v.x === 0 || v.y === 0) { // Straight
@@ -1117,7 +1107,6 @@
                     break;
                 }
             }
-
             return path;
         }
 
