@@ -831,7 +831,7 @@
             LaserBeamline._active.delete(key);
         }
 
-        update() {
+        update2() {
             const scene = SceneManager._scene;
             if (!(scene instanceof Scene_Map)) return;
 
@@ -853,6 +853,18 @@
                 this.draw();
             }
         }
+
+        update() {
+            const scene = SceneManager._scene;
+            if (!(scene instanceof Scene_Map)) return;
+
+            const ev = $gameMap.event(this._eventId);
+            if (!ev) return;
+
+            this.draw(); // always redraw
+        }
+
+       
 
         // ==================================================
         // DRAWING
@@ -941,9 +953,9 @@
                 this._beam.lineTo(x2, y2);
 
 
-                const ww= rgb !== 0xFFFFFF? 1:0.5
+                const ww = rgb !== 0xFFFFFF ? 1 : 0.5
                 this._glowLayers.forEach(o => {
-                    o.g.lineStyle(o.s.w*ww, rgb, o.s.a * alpha);
+                    o.g.lineStyle(o.s.w * ww, rgb, o.s.a * alpha);
                     o.g.moveTo(x1, y1);
                     o.g.lineTo(x2, y2);
                 });
@@ -993,7 +1005,7 @@
             const path = [{ x: 0, y: 0, flag: "start", tunnel: false }];
 
             let x = 0, y = 0;
-            const maxSteps = Math.max($gameMap.width(), $gameMap.height());
+            const maxSteps = Math.max($gameMap.width()*2, $gameMap.height()*2);
             const maxReflections = 10;
             let reflectionCount = 0;
 
@@ -1032,19 +1044,18 @@
                 // Check for reflection
                 let reflectionType = reflectionRegions[nextRegion];
 
-                if (reflectionType == "B") {
-                    path[path.length - 1].tunnel = undefined
-                    path[path.length - 1].flag = "center";
-                    break;
-                }
+
 
                 //reflectionType = null;
                 const eventsOnTile = $gameMap.eventsXy(nextX, nextY);
 
                 for (const evOnTile of eventsOnTile) {
                     if (evOnTile._priorityType === 1) { // only same-as-player
-                        const mirror = evOnTile.event().meta.mirror;
-                        const color = evOnTile.event().meta.color;
+
+                        let mirror = evOnTile.event().meta.mirror;
+                        let skip = evOnTile.event().meta.skip || null;
+                        if (!skip) reflectionType = "B";
+                        let color = evOnTile.event().meta.color;
                         if (mirror) reflectionType = mirror;
                         if (color) {
                             const name = color.trim().toLowerCase();
@@ -1067,8 +1078,14 @@
                 if (ColorLaser) path[path.length - 1].color = ColorLaser
 
 
+                if (reflectionType == "B") {
+                    path[path.length - 1].tunnel = undefined
+                    path[path.length - 1].flag = "center";
+                    break;
+                }
 
                 if (reflectionType && reflectionCount < maxReflections) {
+
                     reflectionCount++;
                     const newDir = reflectionMap[reflectionType][dir];
                     if (newDir) {
