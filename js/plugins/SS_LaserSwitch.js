@@ -782,6 +782,7 @@
                     break;
                 }
             }
+            this._lastPath = path; // store path for later use
             return path;
         }
 
