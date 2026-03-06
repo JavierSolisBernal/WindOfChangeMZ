@@ -297,7 +297,7 @@
     }
 
 
- 
+
     const reflectionRegions = {
         20: "180",    // region ID 20 reflects 180°
         21: "90R",   // region ID 21 reflects 90° right
@@ -518,11 +518,11 @@
 
             const ev = $gameMap.event(this._eventId);
             if (!ev) return;
-            
+
             this.draw(); // always redraw
         }
 
-       
+
 
         // ==================================================
         // DRAWING
@@ -663,7 +663,7 @@
             const path = [{ x: 0, y: 0, flag: "start", tunnel: false }];
 
             let x = 0, y = 0;
-            const maxSteps = Math.max($gameMap.width()*2, $gameMap.height()*2);
+            const maxSteps = Math.max($gameMap.width() * 2, $gameMap.height() * 2);
             const maxReflections = 10;
             let reflectionCount = 0;
 
@@ -693,6 +693,9 @@
                 // Move to next tile
                 x += v.x;
                 y += v.y;
+
+                
+
                 path.push({ x, y, tunnel: isTunnel, color: ColorLaser });
 
 
@@ -767,11 +770,7 @@
                     const verPass = $gameMap.isPassable(nextX, nextY, verDir)
                     canMove = horPass && verPass;
 
-                    if (!canMove) {
-                        path.pop();
-                        path[path.length - 1].flag = "end";
-                        break;
-                    }
+                 
 
 
                 }
@@ -885,16 +884,36 @@
     })();
 
 
+
+
+
     const _Spriteset_Map_update = Spriteset_Map.prototype.update;
+    let flag = true
     Spriteset_Map.prototype.update = function () {
+
+
         _Spriteset_Map_update.call(this);
-        for (const laser of LaserBeamline._active.values()) {
-            laser.update();
+
+
+
+        if (flag) {
+            flag = false
+            for (const laser of LaserBeamline._active.values()) {
+                laser.update();
+            }
+
         }
-    };
+        for (const e of $gameMap.events()) {
+            if (e._oldx != e.x || e._oldy != e.y || e._oldmd != e._mirror_direction) {
+                e._oldx ??= e.x;
+                e._oldy ??= e.y;
+                e._oldmd ??= e._mirror_direction;
+                flag = true;
+                break;
+            }
 
-
-
+        };
+    }
 
     Game_Event.prototype.spawnLaser = function (slot, direction, color = "#00ffccff", width = 6, glowWidth = 20, position = 'center') {
         new LaserBeamline(this._eventId, direction, color, width, glowWidth, position, slot).addToMap();
@@ -932,7 +951,7 @@
     };
 
 
- 
+
 
 
 })();
