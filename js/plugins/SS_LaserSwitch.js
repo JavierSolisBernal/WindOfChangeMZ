@@ -410,7 +410,7 @@
             this._slot = slot;
             this._direction = direction;
             this._startFlag = startFlag;
-            this.needrefresh=true
+            this.needrefresh = true
             const key = LaserBeamline._key(this._mapId, eventId, slot);
 
             // SAVE DATA (only plain data!)
@@ -549,7 +549,7 @@
             // Track already drawn segments to prevent glow stacking
             const drawnSegments = new Set();
 
-
+          
             const path = pathraw.map((item, index, original) => {
                 if (index > 0 && original[index - 1].tunnel === true) {
                     return { ...item, tunnel: true };
@@ -558,11 +558,14 @@
                 return item;
             });
 
+            
+            //const path = pathraw
+            for (let i = 0; i < path.length-1; i++) {
 
-
-            for (let i = 0; i < path.length - 1; i++) {
-
+               
                 if (path[i].tunnel && path[i + 1].tunnel) continue;
+                if(path[i].tunnel && path[i + 1]==undefined) continue
+                
                 const a = path[i];
                 const b = path[i + 1];
 
@@ -778,11 +781,13 @@
                 // Stop if next tile is blocked
                 if (!canMove) {
                     path[path.length - 1].flag = "end";
+                    path[path.length - 1].tunnel = true;
                     break;
                 }
             }
             this._lastPath = path; // store path for later use
-            return path;
+            console.log(path)
+             return path;
         }
 
 
@@ -888,33 +893,23 @@
 
 
     const _Spriteset_Map_update = Spriteset_Map.prototype.update;
-    let flag = true
     Spriteset_Map.prototype.update = function () {
-
-
         _Spriteset_Map_update.call(this);
 
+        const tilemap = this._tilemap;
+        if (!tilemap) return;
 
-        /*
-        if (flag) {
-            flag = false
+        // Check if the tilemap has scrolled
+        if (LaserBeamline._lastOx !== tilemap.origin.x || LaserBeamline._lastOy !== tilemap.origin.y) {
+            LaserBeamline._lastOx = tilemap.origin.x;
+            LaserBeamline._lastOy = tilemap.origin.y;
+
+            // Mark all active lasers to refresh
             for (const laser of LaserBeamline._active.values()) {
-                laser.update();
+                laser.needrefresh = true;
             }
-
         }
-        for (const e of $gameMap.events()) {
-            if (e._oldx != e.x || e._oldy != e.y || e._oldmd != e._mirror_direction) {
-                e._oldx ??= e.x;
-                e._oldy ??= e.y;
-                e._oldmd ??= e._mirror_direction;
-                flag = true;
-                break;
-            }
-
-        };
-        */
-    }
+    };
 
     Game_Event.prototype.spawnLaser = function (slot, direction, color = "#00ffccff", width = 6, glowWidth = 20, position = 'center') {
         new LaserBeamline(this._eventId, direction, color, width, glowWidth, position, slot).addToMap();
