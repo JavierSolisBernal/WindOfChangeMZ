@@ -410,7 +410,7 @@
             this._slot = slot;
             this._direction = direction;
             this._startFlag = startFlag;
-
+            this.needrefresh=true
             const key = LaserBeamline._key(this._mapId, eventId, slot);
 
             // SAVE DATA (only plain data!)
@@ -489,6 +489,7 @@
             LaserBeamline._active.delete(key);
         }
 
+
         update2() {
             const scene = SceneManager._scene;
             if (!(scene instanceof Scene_Map)) return;
@@ -496,30 +497,29 @@
             const ev = $gameMap.event(this._eventId);
             if (!ev) return;
 
-            const tilemap = scene._spriteset._tilemap;
-
-            if (
-                this._lastX !== ev.x ||
-                this._lastY !== ev.y ||
-                this._lastOx !== tilemap.origin.x ||
-                this._lastOy !== tilemap.origin.y
-            ) {
-                this._lastX = ev.x;
-                this._lastY = ev.y;
-                this._lastOx = tilemap.origin.x;
-                this._lastOy = tilemap.origin.y;
-                this.draw();
-            }
+            this.draw(); // always redraw
         }
+
 
         update() {
             const scene = SceneManager._scene;
             if (!(scene instanceof Scene_Map)) return;
 
-            const ev = $gameMap.event(this._eventId);
-            if (!ev) return;
+            const tilemap = scene._spriteset?._tilemap;
+            if (!tilemap) return;
 
-            this.draw(); // always redraw
+            // Check only for map scroll
+            if (this._lastOx !== tilemap.origin.x || this._lastOy !== tilemap.origin.y) {
+                this._lastOx = tilemap.origin.x;
+                this._lastOy = tilemap.origin.y;
+
+                this.needrefresh = true;
+            }
+
+            if (this.needrefresh) {
+                this.needrefresh = false;
+                this.draw();
+            }
         }
 
 
@@ -694,7 +694,7 @@
                 x += v.x;
                 y += v.y;
 
-                
+
 
                 path.push({ x, y, tunnel: isTunnel, color: ColorLaser });
 
@@ -770,7 +770,7 @@
                     const verPass = $gameMap.isPassable(nextX, nextY, verDir)
                     canMove = horPass && verPass;
 
-                 
+
 
 
                 }
@@ -895,7 +895,7 @@
         _Spriteset_Map_update.call(this);
 
 
-
+        /*
         if (flag) {
             flag = false
             for (const laser of LaserBeamline._active.values()) {
@@ -913,6 +913,7 @@
             }
 
         };
+        */
     }
 
     Game_Event.prototype.spawnLaser = function (slot, direction, color = "#00ffccff", width = 6, glowWidth = 20, position = 'center') {
