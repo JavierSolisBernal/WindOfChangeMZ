@@ -473,6 +473,8 @@
             tilemap.children.sort((a, b) => (a.z || 0) - (b.z || 0));
         }
 
+       
+
         killLaser(silent = false) {
             this._beam?.clear();
             this._glowLayers?.forEach(o => o.g.clear());
@@ -490,15 +492,6 @@
         }
 
 
-        update2() {
-            const scene = SceneManager._scene;
-            if (!(scene instanceof Scene_Map)) return;
-
-            const ev = $gameMap.event(this._eventId);
-            if (!ev) return;
-
-            this.draw(); // always redraw
-        }
 
 
         update() {
@@ -548,24 +541,13 @@
 
             // Track already drawn segments to prevent glow stacking
             const drawnSegments = new Set();
+            const path = pathraw
+            for (let i = 0; i < path.length - 1; i++) {
 
-          
-            const path = pathraw.map((item, index, original) => {
-                if (index > 0 && original[index - 1].tunnel === true) {
-                    return { ...item, tunnel: true };
-                }
 
-                return item;
-            });
+                if (path[i].tunnel) continue;
 
-            
-            //const path = pathraw
-            for (let i = 0; i < path.length-1; i++) {
 
-               
-                if (path[i].tunnel && path[i + 1].tunnel) continue;
-                if(path[i].tunnel && path[i + 1]==undefined) continue
-                
                 const a = path[i];
                 const b = path[i + 1];
 
@@ -588,11 +570,11 @@
 
                 let test = path[i].tunnel ? "start" : null;
                 let test2 = path[i + 1].tunnel ? "start" : null;
-                let test3 = path[i + 1].flag ?? "end"
+                if (path[i - 1]?.tunnel) test = "start"
 
 
                 const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : test);
-                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? test3 : test2);
+                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? "start" : test2);
 
                 const x1 = (ev.x + a.x) * tw + p1.x - ox;
                 const y1 = (ev.y + a.y) * th + p1.y - oy;
@@ -785,9 +767,20 @@
                     break;
                 }
             }
+
+
+            // Create a fast lookup map of all tiles the laser passes through
+            if (!this._tileSet) this._tileSet = new Set();
+            this._tileSet.clear();
+
+            for (const p of path) {
+                const key = `${p.x},${p.y}`;
+                this._tileSet.add(key);
+            }
+
             this._lastPath = path; // store path for later use
-            console.log(path)
-             return path;
+
+            return path;
         }
 
 
