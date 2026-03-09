@@ -391,6 +391,10 @@
             this._active.clear();
         }
 
+        isTileHit(x, y) {
+            return this._tileSet?.has(`${x},${y}`);
+        }
+
         // ==================================================
         // CONSTRUCTOR
         // ==================================================
@@ -473,7 +477,7 @@
             tilemap.children.sort((a, b) => (a.z || 0) - (b.z || 0));
         }
 
-       
+
 
         killLaser(silent = false) {
             this._beam?.clear();
@@ -572,9 +576,8 @@
                 let test2 = path[i + 1].tunnel ? "start" : null;
                 if (path[i - 1]?.tunnel) test = "start"
 
-
                 const p1 = this._tileAnchor(a, dx, dy, tw, th, i === 0 ? this._startFlag : test);
-                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? "start" : test2);
+                const p2 = this._tileAnchor(b, dx, dy, tw, th, i === path.length - 2 ? (path[i + 1].flag == "endmap" ? "end" : "start") : test2);
 
                 const x1 = (ev.x + a.x) * tw + p1.x - ox;
                 const y1 = (ev.y + a.y) * th + p1.y - oy;
@@ -637,6 +640,7 @@
 
 
         _buildRayPath(startX, startY, dir) {
+
             // Map RPG Maker directions to x/y vectors
             const _dirToVector = (dir) => ({
                 1: { x: -1, y: 1 }, 2: { x: 0, y: 1 }, 3: { x: 1, y: 1 },
@@ -667,7 +671,7 @@
 
                 // Stop if out of map bounds
                 if (!$gameMap.isValid(nextX, nextY)) {
-                    path[path.length - 1].flag = "end";
+                    path[path.length - 1].flag = "endmap";
                     break;
                 }
 
@@ -697,11 +701,10 @@
 
                 for (const evOnTile of eventsOnTile) {
                     if (evOnTile._priorityType === 1) { // only same-as-player
-
-                        let mirror = evOnTile.event().meta.mirror;
-                        let skip = evOnTile.event().meta.skip || null;
+                        let mirror = evOnTile._mirror;
+                        let skip = evOnTile._skip || null;
                         if (!skip) reflectionType = "B";
-                        let color = evOnTile.event().meta.color;
+                        let color = evOnTile._color;
                         if (mirror) reflectionType = mirror;
                         if (color) {
                             const name = color.trim().toLowerCase();
@@ -887,21 +890,51 @@
 
     const _Spriteset_Map_update = Spriteset_Map.prototype.update;
     Spriteset_Map.prototype.update = function () {
+
         _Spriteset_Map_update.call(this);
 
         const tilemap = this._tilemap;
         if (!tilemap) return;
 
+
+
         // Check if the tilemap has scrolled
+
         if (LaserBeamline._lastOx !== tilemap.origin.x || LaserBeamline._lastOy !== tilemap.origin.y) {
             LaserBeamline._lastOx = tilemap.origin.x;
             LaserBeamline._lastOy = tilemap.origin.y;
-
             // Mark all active lasers to refresh
             for (const laser of LaserBeamline._active.values()) {
-                laser.needrefresh = true;
+                if (!laser.needrefresh) laser.needrefresh = true;
             }
         }
+
+
+
+        for (const e of $gameMap.events()) {
+            const mirror = e._mirror ?? "B";
+            if (e._oldRealX !== e._realX || e._oldRealY !== e._realY || e._oldmirror !== mirror) {
+                e._oldRealX = e._realX;
+                e._oldRealY = e._realY;
+                e._oldmirror = mirror;
+                for (const laser of LaserBeamline._active.values()) {
+                   
+                    const ev = $gameMap.event(laser._eventId);
+                    if (!ev) continue;
+                    if (laser.isTileHit(e.x - ev.x, e.y - ev.y))
+                        if (!laser.needrefresh) laser.needrefresh = true;
+                }
+            }
+        }
+
+        if ($gamePlayer.old_carryId != ($gamePlayer._carryId || 0)) {
+            for (const laser of LaserBeamline._active.values()) {
+                if (!laser.needrefresh) laser.needrefresh = true;
+            }
+            $gamePlayer.old_carryId = ($gamePlayer._carryId || 0)
+        }
+
+
     };
 
     Game_Event.prototype.spawnLaser = function (slot, direction, color = "#00ffccff", width = 6, glowWidth = 20, position = 'center') {
@@ -911,6 +944,17 @@
         LaserBeamline.kill($gameMap.mapId(), this._eventId, slot);
     }
 
+
+
+    const SS_Game_Event_initialize = Game_Event.prototype.initialize;
+    Game_Event.prototype.initialize = function (mapId, eventId) {
+        SS_Game_Event_initialize.call(this, mapId, eventId);
+        const evMeta = this.event().meta;
+        console.log(evMeta)
+        this._mirror = evMeta.mirror || null;
+        this._skip = evMeta.skip || null;
+        this._color = evMeta.color || null;
+    };
 
     Game_Event.prototype.rotateMirrorCW = function () {
         const order = [8, 9, 6, 3, 2, 1, 4, 7];
