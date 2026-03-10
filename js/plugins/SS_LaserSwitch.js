@@ -729,7 +729,7 @@
 
                 if (reflectionType == "B") {
                     path[path.length - 1].tunnel = undefined
-                    path[path.length - 1].flag = "center";
+                    path[path.length - 1].flag = "start";
                     break;
                 }
 
@@ -804,6 +804,13 @@
         SS_laser_Game_System_initialize.call(this);
         this.pendingLaserSpawns = [];
         this.pendingLaserKills = [];
+    };
+
+    Game_System.prototype.ssEventData = function (mapId, eventId) {
+        this._ssEventData ??= {};
+        this._ssEventData[mapId] ??= {};
+        this._ssEventData[mapId][eventId] ??= {};
+        return this._ssEventData[mapId][eventId];
     };
 
     // ==================================================
@@ -918,12 +925,16 @@
                 e._oldRealY = e._realY;
                 e._oldmirror = mirror;
                 for (const laser of LaserBeamline._active.values()) {
-                   
+
                     const ev = $gameMap.event(laser._eventId);
                     if (!ev) continue;
-                    if (laser.isTileHit(e.x - ev.x, e.y - ev.y))
+                    if (laser.isTileHit(e.x - ev.x, e.y - ev.y) ||
+                        ((e._oldX !== undefined && e._oldY !== undefined) ? laser.isTileHit(e._oldX - ev.x, e._oldY - ev.y) : false)
+                    )
                         if (!laser.needrefresh) laser.needrefresh = true;
                 }
+                e._oldX = e.x
+                e._oldY = e.y
             }
         }
 
@@ -933,8 +944,6 @@
             }
             $gamePlayer.old_carryId = ($gamePlayer._carryId || 0)
         }
-
-
     };
 
     Game_Event.prototype.spawnLaser = function (slot, direction, color = "#00ffccff", width = 6, glowWidth = 20, position = 'center') {
@@ -949,39 +958,23 @@
     const SS_Game_Event_initialize = Game_Event.prototype.initialize;
     Game_Event.prototype.initialize = function (mapId, eventId) {
         SS_Game_Event_initialize.call(this, mapId, eventId);
-        const evMeta = this.event().meta;
-        console.log(evMeta)
-        this._mirror = evMeta.mirror || null;
-        this._skip = evMeta.skip || null;
-        this._color = evMeta.color || null;
+        const ev = this.event();
+        if (!ev) return;
+        const meta = this.event()?.meta ?? {};
+        const data = $gameSystem.ssEventData(mapId, eventId);
+        this._mirror = data.mirror ?? meta.mirror ?? null;
+        this._skip = data.skip ?? meta.skip ?? null;
+        this._color = data.color ?? meta.color ?? null;
     };
 
-    Game_Event.prototype.rotateMirrorCW = function () {
-        const order = [8, 9, 6, 3, 2, 1, 4, 7];
-
-        //const order = [1, 2, 3, 6, 9, 8, 7, 4]; // clockwise order ignoring 5 (center)
-        let dir = this._event_dir
-        const map = { U: 8, D: 2, L: 4, R: 6, UL: 7, UR: 9, DL: 1, DR: 3 };
-
-        if (typeof dir === "number") dir;
-        else
-            dir = map[dir]
-        const idx = order.indexOf(dir);
-        if (idx >= 0) this._event_dir = order[(idx + 1) % order.length];
-
+    Game_Event.prototype.setMirror = function (dir = null) {
+        const ev = this;
+        const data = $gameSystem.ssEventData(ev._mapId, ev._eventId);
+        data.mirror = dir
+        this._mirror = dir
     };
 
-    Game_Event.prototype.rotateMirrorCCW = function () {
-        const order = [1, 4, 7, 8, 9, 6, 3, 2]; // counterclockwise
-        let dir = this._event_dir
-        const map = { U: 8, D: 2, L: 4, R: 6, UL: 7, UR: 9, DL: 1, DR: 3 };
-        if (typeof dir === "number") dir;
-        else
-            dir = map[dir]
-        const idx = order.indexOf(dir);
-        if (idx >= 0) this._event_dir = order[(idx + 1) % order.length];
 
-    };
 
 
 
