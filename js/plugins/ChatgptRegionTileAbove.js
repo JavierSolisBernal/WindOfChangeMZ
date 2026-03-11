@@ -15,7 +15,7 @@
     //const REGION_ID = Number(params.RegionId || 5);
     const REGION_ID = [254, 255]
     const DEBUG_OUTLINE = true//params.DebugOutline === 'true';
-    const BLINK_INTERVAL = Number(params.BlinkInterval || 30);
+    const BLINK_INTERVAL = Number(params.BlinkInterval || 40);
     const RADIUS_AROUND_PLAYER = Number(params.RadiusAroundPlayer || 6);
 
     const _Spriteset_Map_createTilemap = Spriteset_Map.prototype.createTilemap;
@@ -182,38 +182,7 @@
         }
     };
 
-    /*
-    const _Spriteset_Map_updateTilemap = Spriteset_Map.prototype.updateTilemap;
-    Spriteset_Map.prototype.updateTilemap = function () {
-        _Spriteset_Map_updateTilemap.call(this);
-
-        if (this._regionUpper) {
-            this._regionUpper.origin.x = this._tilemap.origin.x;
-            this._regionUpper.origin.y = this._tilemap.origin.y;
-        }
-
-        if (DEBUG_OUTLINE && this._regionShapes) {
-            // Keep outlines aligned with scrolling
-            this._regionShapes.x = -this._tilemap.origin.x;
-            this._regionShapes.y = -this._tilemap.origin.y;
-
-            // Animate blinking
-            for (const shape of this._regionShapes.children) {
-                shape.blinkCounter++;
-                if (shape.blinkCounter >= shape.blinkInterval) {
-                    shape.blinkCounter = 0;
-                    shape.blinkIndex = (shape.blinkIndex + 1) % shape.blinkColors.length;
-
-                    // Redraw with new color
-                    shape.clear();
-                    shape.lineStyle(2, shape.blinkColors[shape.blinkIndex]);
-                    shape.drawRect(2, 2, this._regionUpper.tileWidth - 4, this._regionUpper.tileHeight - 4);
-                    shape.endFill();
-                }
-            }
-        }
-    };
- */
+    
 
 
 })();
