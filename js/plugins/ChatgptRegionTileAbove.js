@@ -259,18 +259,17 @@
             return; // Skip A2/A3/A4
         }*/
         // — A1 (animated) —
-        // --- A1 Animated Tiles (water/waterfall) ---
         if (Tilemap.isTileA1(tileId)) {
             if (!container._a1Sprites) container._a1Sprites = {};
-
             const tileKey = `${x},${y}`;
-            if (container._a1Sprites[tileKey]) return;
+            if (container._a1Sprites[tileKey]) return; // Already created
 
             container._a1Sprites[tileKey] = [];
 
-            // Determine frame count: waterfall=3, water=4
             const isWaterfall = (kind >= 4 && kind % 2 === 1);
-            const frameCount = isWaterfall ? 3 : 4;
+            const frameCount = isWaterfall ? 3 : 4; // Waterfall=3, water=4
+            const w1 = tw / 2;
+            const h1 = th / 2;
 
             for (let frame = 0; frame < frameCount; frame++) {
                 const frameSprites = [];
@@ -278,9 +277,10 @@
                 let by = 0;
                 let table = Tilemap.FLOOR_AUTOTILE_TABLE;
 
+                const tx = kind % 8;
+                const ty = Math.floor(kind / 8);
                 const waterSurfaceIndex = [0, 1, 2, 1][frame % 4];
 
-                // --- Determine base bx/by for kind ---
                 if (kind === 0) { bx = waterSurfaceIndex * 2; by = 0; }
                 else if (kind === 1) { bx = waterSurfaceIndex * 2; by = 3; }
                 else if (kind === 2) { bx = 6; by = 0; }
@@ -288,21 +288,14 @@
                 else {
                     bx = Math.floor(tx / 4) * 8;
                     by = ty * 6 + (Math.floor(tx / 2) % 2) * 3;
-
-                    if (kind % 2 === 0) {
-                        bx += waterSurfaceIndex * 2; // water surface
-                    } else {
-                        bx += 6;
-                        table = Tilemap.WATERFALL_AUTOTILE_TABLE;
-                        by += frame % 3; // waterfall frame
-                    }
+                    if (kind % 2 === 0) bx += waterSurfaceIndex * 2; // water
+                    else { bx += 6; table = Tilemap.WATERFALL_AUTOTILE_TABLE; by += frame % 3; } // waterfall
                 }
 
                 const quarterTable = table[shape];
                 for (let i = 0; i < 4; i++) {
                     const qsx = quarterTable[i][0];
                     const qsy = quarterTable[i][1];
-
                     const sx1 = (bx * 2 + qsx) * w1;
                     const sy1 = (by * 2 + qsy) * h1;
 
@@ -310,7 +303,10 @@
                     sprite.setFrame(sx1, sy1, w1, h1);
                     sprite.x = x + (i % 2) * w1;
                     sprite.y = y + Math.floor(i / 2) * h1;
-                    sprite.visible = false;
+                    sprite.visible = (frame === 0); // Show first frame initially
+
+                    sprite._kind = kind;   // Store kind for update
+                    sprite._shape = shape; // Store shape for update
 
                     container.addChild(sprite);
                     frameSprites.push(sprite);
@@ -318,7 +314,6 @@
 
                 container._a1Sprites[tileKey].push(frameSprites);
             }
-
             return; // skip A2/A3/A4
         }
 
@@ -449,23 +444,7 @@
 
 
 
-    function updateA1Sprites2(container, tilemap) {
-        if (!container._a1Sprites) return;
 
-        const animationFrame = tilemap.animationFrame;
-
-        for (const tileKey in container._a1Sprites) {
-            const frames = container._a1Sprites[tileKey];
-            const kind = frames._a1Data?.kind ?? 0;
-
-            const frameCount = (kind >= 4 && kind % 2 === 1) ? 3 : 4;
-            const frameIndex = Math.floor(animationFrame / 15) % frameCount;
-
-            for (let i = 0; i < frames.length; i++) {
-                frames[i].forEach(s => s.visible = (i === frameIndex));
-            }
-        }
-    }
 
     function updateA1Sprites(container, tilemap) {
         if (!container._a1Sprites) return;
@@ -485,6 +464,28 @@
             for (let i = 0; i < frames.length; i++) {
                 frames[i].forEach(s => s.visible = (i === frameIndex));
             }
+        }
+    }
+
+
+    function updateA1Sprites(container, tilemap) {
+        if (!container._a1Sprites) return;
+        const animationFrame = container._animationFrame || 0;
+
+        for (const tileKey in container._a1Sprites) {
+            const frames = container._a1Sprites[tileKey];
+            if (!frames || frames.length === 0) continue;
+
+            const firstSprite = frames[0][0];
+            const kind = firstSprite._kind ?? 0;
+            const frameCount = (kind >= 4 && kind % 2 === 1) ? 3 : 4;
+
+            const frameIndex = Math.floor(animationFrame / 15) % frameCount;
+
+            frames.forEach((frameSprites, idx) => {
+                const visible = (idx === frameIndex);
+                frameSprites.forEach(s => s.visible = visible);
+            });
         }
     }
 
@@ -508,7 +509,18 @@
             this._regionUpperSprites.y = -this._tilemap.origin.y;
             //this._regionUpperSprites.z = 20;
             this.updateRegionAlpha();
-            updateA1Sprites(this._regionUpperSprites, this._tilemap);
+
+            if (this._regionUpperSprites && this._regionUpperSprites._a1Sprites) {
+                if (!this._regionUpperSprites._animationFrame) this._regionUpperSprites._animationFrame = 0;
+                // Advance every 15 frames (same speed as MZ)
+                if (Graphics.frameCount % 2 === 0) {
+                    this._regionUpperSprites._animationFrame++;
+                }
+
+                updateA1Sprites(this._regionUpperSprites, this._regionUpperSprites);
+            }
+
+            //updateA1Sprites(this._regionUpperSprites, this._tilemap);
         }
 
         if (this._regionLower) {
