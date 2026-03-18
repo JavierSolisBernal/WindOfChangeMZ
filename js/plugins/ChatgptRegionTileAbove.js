@@ -182,7 +182,7 @@
     }
 
 
-    function drawAutotileToContainer(container, bitmaps, tileId, x, y, tw, th) {
+    function drawAutotileToContainer(container, region, bitmaps, tileId, x, y, tw, th) {
         const kind = Tilemap.getAutotileKind(tileId);
         const shape = Tilemap.getAutotileShape(tileId);
         const tileKey = `{x:${x},y:${y},tileId:${tileId}}`;
@@ -196,68 +196,7 @@
 
         const w1 = tw / 2;
         const h1 = th / 2;
-        /*
-        // — A1 (animated) —
-        if (Tilemap.isTileA1(tileId)) {
-            const animationFrame = container._animationFrame || 0;
-            const w1 = tw / 2;
-            const h1 = th / 2;
 
-            // Initialize sprite cache
-            if (!container._a1Sprites) container._a1Sprites = {};
-            if (!container._a1Sprites[tileKey]) {
-                container._a1Sprites[tileKey] = [];
-
-                // Precompute 4 animation frames
-                for (let frame = 0; frame < 4; frame++) {
-                    const frameSprites = [];
-                    const waterSurfaceIndex = [0, 1, 2, 1][frame];
-
-                    // Determine base bx/by per kind
-                    if (kind === 0) { bx = waterSurfaceIndex * 2; by = 0; }
-                    else if (kind === 1) { bx = waterSurfaceIndex * 2; by = 3; }
-                    else if (kind === 2) { bx = 6; by = 0; }
-                    else if (kind === 3) { bx = 6; by = 3; }
-                    else {
-                        bx = Math.floor(tx / 4) * 8;
-                        by = ty * 6 + (Math.floor(tx / 2) % 2) * 3;
-                        if (kind % 2 === 0) bx += waterSurfaceIndex * 2;
-                        else {
-                            bx += 6;
-                            autotileTable = Tilemap.WATERFALL_AUTOTILE_TABLE;
-                            by += frame % 3;
-                        }
-                    }
-
-                    // Create 4 subtile sprites
-                    for (let i = 0; i < 4; i++) {
-                        const qsx = i % 2;
-                        const qsy = Math.floor(i / 2);
-                        const sx1 = (bx * 2 + qsx) * w1;
-                        const sy1 = (by * 2 + qsy) * h1;
-
-                        const sprite = new Sprite(bitmaps[0]);
-                        sprite.setFrame(sx1, sy1, w1, h1);
-                        sprite.x = x + qsx * w1;
-                        sprite.y = y + qsy * h1;
-                        sprite.visible = false;
-
-                        container.addChild(sprite);
-                        frameSprites.push(sprite);
-                    }
-
-                    container._a1Sprites[tileKey].push(frameSprites);
-                }
-            }
-
-            // Update visibility based on animation frame
-            const frameIndex = Math.floor(animationFrame / 15) % 4;
-            container._a1Sprites[tileKey].forEach((frameSprites, idx) => {
-                frameSprites.forEach(s => s.visible = (idx === frameIndex));
-            });
-
-            return; // Skip A2/A3/A4
-        }*/
         // — A1 (animated) —
         if (Tilemap.isTileA1(tileId)) {
             if (!container._a1Sprites) container._a1Sprites = {};
@@ -307,7 +246,7 @@
 
                     sprite._kind = kind;   // Store kind for update
                     sprite._shape = shape; // Store shape for update
-
+                    sprite.region = region
                     container.addChild(sprite);
                     frameSprites.push(sprite);
                 }
@@ -367,7 +306,7 @@
 
             sprite.x = x + (i % 2) * w1;
             sprite.y = y + Math.floor(i / 2) * h1;
-
+            sprite.region = region
             container.addChild(sprite);
         }
     }
@@ -400,7 +339,7 @@
 
 
                 if (Tilemap.isAutotile(tileId)) {
-                    drawAutotileToContainer(this._regionUpperSprites, bitmaps, tileId, x * tw, y * th, tw, th);
+                    drawAutotileToContainer(this._regionUpperSprites, region, bitmaps, tileId, x * tw, y * th, tw, th);
                 } else {
                     const tilesetIndex = 4 + Math.floor((tileId - Tilemap.TILE_ID_A5) / 256);
                     const frame = getTileFrameMZ(tileId, tw, th);
@@ -408,6 +347,8 @@
                     sprite.setFrame(frame.sx, frame.sy, tw, th);
                     sprite.x = x * tw;
                     sprite.y = y * th;
+
+                    sprite.region = region;
                     this._regionUpperSprites.addChild(sprite);
                 }
 
@@ -433,12 +374,17 @@
         }
     };
 
-
+    let flag = true
     Spriteset_Map.prototype.updateRegionAlpha = function () {
         const visible = $gameSwitches.value(1);
+
+
         this._regionUpperSprites.children.forEach(sprite => {
-            if (!sprite.static)
-                sprite.alpha = visible ? 0.25 : 1;
+            if (REGION_EXCEPTIONS.includes(sprite.region))
+                sprite.alpha = 1
+            else
+                sprite.alpha = visible ? 0.65 : 1;
+            if (sprite.region === undefined) sprite.alpha = visible ? 0.65 : 1;;
         });
     };
 
@@ -446,26 +392,6 @@
 
 
 
-    function updateA1Sprites(container, tilemap) {
-        if (!container._a1Sprites) return;
-
-        const animationFrame = tilemap.animationFrame;
-
-        for (const tileKey in container._a1Sprites) {
-            const frames = container._a1Sprites[tileKey];
-
-            // Determine frame count per tile
-            const firstSprite = frames[0][0];
-            const kind = firstSprite._kind ?? 0;
-            const frameCount = (kind >= 4 && kind % 2 === 1) ? 3 : 4;
-            const frameIndex = Math.floor(animationFrame / 15) % frameCount;
-
-            // Toggle visibility
-            for (let i = 0; i < frames.length; i++) {
-                frames[i].forEach(s => s.visible = (i === frameIndex));
-            }
-        }
-    }
 
 
     function updateA1Sprites(container, tilemap) {
@@ -507,7 +433,7 @@
         if (this._regionUpperSprites) {
             this._regionUpperSprites.x = -this._tilemap.origin.x;
             this._regionUpperSprites.y = -this._tilemap.origin.y;
-            //this._regionUpperSprites.z = 20;
+
             this.updateRegionAlpha();
 
             if (this._regionUpperSprites && this._regionUpperSprites._a1Sprites) {
