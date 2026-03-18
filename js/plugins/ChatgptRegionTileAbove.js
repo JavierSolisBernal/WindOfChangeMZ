@@ -19,11 +19,12 @@
     const REGION_ALPHA = {
     254: 1.0,   // no fade
     255: 0.65,   // fade
-    2: 9   // fade almost solid
+    2: 0.65  // fade almost solid
     };
 
     const regionTileMap = {
         255: 46, // region 1 → tile ID 20
+        2:46,
 
     };
 
