@@ -17,14 +17,14 @@
     const DEBUG_OUTLINE = false//params.DebugOutline === 'true';
     const BLINK_INTERVAL = Number(params.BlinkInterval || 40);
     const REGION_ALPHA = {
-    254: 1.0,   // no fade
-    255: 0.65,   // fade
-    2: 0.65  // fade almost solid
+        254: 1.0,   // no fade
+        255: 0.65,   // fade
+        2: 0.65  // fade almost solid
     };
 
     const regionTileMap = {
         255: 46, // region 1 → tile ID 20
-        2:46,
+        2: 46,
 
     };
 
@@ -378,23 +378,13 @@
         }
     };
 
-    let flag = true
     Spriteset_Map.prototype.updateRegionAlpha = function () {
         const visible = $gameSwitches.value(1);
-
-
         this._regionUpperSprites.children.forEach(sprite => {
-
-            if (sprite.region === undefined) {
-                sprite.alpha = REGION_ALPHA[sprite.region] ?? 1;
-            }
-            else if (visible) {
-                sprite.alpha = REGION_ALPHA[sprite.region] ?? 1;
-            } else {
-                sprite.alpha = 1;
-            }
-
-
+            const alpha = sprite.region !== undefined
+                ? (REGION_ALPHA[sprite.region] ?? 1)
+                : 0.5;
+            sprite.alpha = visible ? alpha : 1;
         });
     };
 
