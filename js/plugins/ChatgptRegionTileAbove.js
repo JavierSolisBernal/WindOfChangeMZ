@@ -13,11 +13,14 @@
 
     const pluginName = "ChatgptRegionTileAbove";
     const params = PluginManager.parameters(pluginName);
-    //const REGION_ID = Number(params.RegionId || 5);
-    const REGION_ID = [254, 255]
+    const REGION_ID = [254, 255, 2]
     const DEBUG_OUTLINE = false//params.DebugOutline === 'true';
     const BLINK_INTERVAL = Number(params.BlinkInterval || 40);
-    const REGION_EXCEPTIONS = [254]
+    const REGION_ALPHA = {
+    254: 1.0,   // no fade
+    255: 0.65,   // fade
+    2: 9   // fade almost solid
+    };
 
     const regionTileMap = {
         255: 46, // region 1 → tile ID 20
@@ -380,11 +383,17 @@
 
 
         this._regionUpperSprites.children.forEach(sprite => {
-            if (REGION_EXCEPTIONS.includes(sprite.region))
-                sprite.alpha = 1
-            else
-                sprite.alpha = visible ? 0.65 : 1;
-            if (sprite.region === undefined) sprite.alpha = visible ? 0.65 : 1;;
+
+            if (sprite.region === undefined) {
+                sprite.alpha = REGION_ALPHA[sprite.region] ?? 1;
+            }
+            else if (visible) {
+                sprite.alpha = REGION_ALPHA[sprite.region] ?? 1;
+            } else {
+                sprite.alpha = 1;
+            }
+
+
         });
     };
 
