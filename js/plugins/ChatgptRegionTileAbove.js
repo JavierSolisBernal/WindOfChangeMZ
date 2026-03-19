@@ -300,7 +300,7 @@
                         shape.endFill();
                         shape.x = x * tw;
                         shape.y = y * th;
-                        sprite.z = z
+                        shape.z = z
                         this._regionShapes.addChild(shape);
                     }
                 }
