@@ -6,7 +6,7 @@
 
 (() => {
 
-    const REGION_ID = [254, 255, 2];
+
 
     const REGION_ALPHA = {
         254: 2,
@@ -16,7 +16,7 @@
     };
 
     const regionTileMap = {
-        255: 46, // region 1 → tile ID 20
+        255: 46,
         2: 46,
 
     };
@@ -33,7 +33,7 @@
         const mapping = tileMap[`${x},${y}`];
 
         if (mapping) {
-            const tileId = $gameMap.tileId(mapping.setX, mapping.setY, 0);          
+            const tileId = $gameMap.tileId(mapping.setX, mapping.setY, 0);
             if (!Tilemap.isTileA1(tileId)) {
                 return tileId;
             }
@@ -77,9 +77,16 @@
                 const region = $gameMap.regionId(x, y);
                 let tileId = 0
 
-               
+
                 if (regionTileMap[region] !== undefined) tileId = getTileIdAt(region, x, y)
-                this._regionLower._mapData.push(tileId);
+                    // NOTE:
+                    //Intentionally push only 1 value per tile instead of 6.
+                    // This uses Tilemap as a flat tile stream
+                    // Do NOT convert to 6-layer format or rendering will break.
+                    //correct format
+                    //this._regionLower._mapData.push(tileId, 0, 0, 0, 0, 0);
+                    this._regionLower._mapData.push(tileId);
+                
 
             }
         }
@@ -398,14 +405,14 @@
         for (const key in this._regionSpriteMap) {
             const c = this._regionSpriteMap[key];
 
-            let alpha 
+            let alpha
             const val = REGION_ALPHA[c.region];;
 
             if (typeof val !== "number" || val < 0 || val > 1) {
-                alpha =  1
+                alpha = 1
             }
             else if (pathfind) {
-                alpha =  0.5;
+                alpha = 0.5;
             } else if (visible) {
                 alpha = val ?? 1;
             } else {
@@ -444,5 +451,20 @@
 
 
     }
+
+    const _destroy = Spriteset_Map.prototype.destroy;
+    Spriteset_Map.prototype.destroy = function (options) {
+        if (this._regionUpperSprites) {
+            this._regionUpperSprites.removeChildren(); 
+            this._regionUpperSprites.destroy({ children: true });
+        }
+
+        if (this._regionLower) {
+            this._regionLower.destroy();
+        }
+
+        _destroy.call(this, options);
+    };
+
 
 })();
