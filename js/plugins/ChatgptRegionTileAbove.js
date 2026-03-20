@@ -1,25 +1,18 @@
 /*:
- * @target MZ
- * @plugindesc Region tiles rendered above characters
- * @author Squall_seawave
- *
- * @param RegionId
- * @type number[]
- * @default [225]
- */
-
+* @target MZ
+* @plugindesc Region tiles rendered above characters (optimized + autotiles + smart caching)
+* @author Squall_seawave + ChatGPT
+  */
 
 (() => {
 
-    const pluginName = "ChatgptRegionTileAbove";
-    const params = PluginManager.parameters(pluginName);
-    const REGION_ID = [254, 255, 2]
-    const DEBUG_OUTLINE = false//params.DebugOutline === 'true';
-    const BLINK_INTERVAL = Number(params.BlinkInterval || 40);
+    const REGION_ID = [254, 255, 2];
+
     const REGION_ALPHA = {
-        254: 1.0,   // no fade
-        255: 0.65,   // fade
-        2: 0.65  // fade almost solid
+        254: 2,
+        255: 0.65,
+        2: 0.65
+
     };
 
     const regionTileMap = {
@@ -28,20 +21,37 @@
 
     };
 
+    const tileMap = {
+        "10,12": { setX: 11, setY: 12 }
+    };
+
     function getTileIdForRegion(regionId) {
         return regionTileMap[regionId] || 0;
     }
 
-    const _Spriteset_Map_createTilemap = Spriteset_Map.prototype.createTilemap;
+    function getTileIdAt(regionId, x, y) {
+        const mapping = tileMap[`${x},${y}`];
+
+        if (mapping) {
+            const tileId = $gameMap.tileId(mapping.setX, mapping.setY, 0);          
+            if (!Tilemap.isTileA1(tileId)) {
+                return tileId;
+            }
+        }
+
+        const tileIndex = regionTileMap[regionId] || 0;
+        return tileIndex + 1536;
+    }
+
+    // ==============================
+    // INIT
+    // ==============================
+    const _createTilemap = Spriteset_Map.prototype.createTilemap;
     Spriteset_Map.prototype.createTilemap = function () {
-        _Spriteset_Map_createTilemap.call(this);
-
+        _createTilemap.call(this);
         this.createRegionLowerLayer();
-        //this.createRegionUpperLayer();
-        this.createRegionUpperLayerSprites()
-
+        this.createRegionLayer();
     };
-
 
 
 
@@ -66,7 +76,9 @@
             for (let x = 0; x < $gameMap.width(); x++) {
                 const region = $gameMap.regionId(x, y);
                 let tileId = 0
-                if (region in regionTileMap) tileId = 1536 + getTileIdForRegion(region);
+
+               
+                if (regionTileMap[region] !== undefined) tileId = getTileIdAt(region, x, y)
                 this._regionLower._mapData.push(tileId);
 
             }
@@ -80,43 +92,161 @@
 
 
 
+    Spriteset_Map.prototype.createRegionLayer = function () {
+        this._regionUpperSprites = new PIXI.Container();
+        this._regionUpperSprites.sortableChildren = true;
 
 
-    function getTileFrameMZ(tileId, tw, th) {
-        let index = 0;
-        let localId = 0;
-        let sx = 0;
-        let sy = 0;
+        this._tilemap.parent.addChild(this._regionUpperSprites);
 
-        if (tileId >= 1536) {
-            // A5
-            index = 4;
-            localId = tileId - 1536;
-        } else {
-            // B–E
-            index = Math.floor(tileId / 256) + 5;
-            localId = tileId % 256;
+        this._regionSpritePool = [];
+        this._regionSpriteMap = {};
+
+        this._regionBitmaps = $gameMap.tileset().tilesetNames.map(n =>
+            ImageManager.loadTileset(n || "")
+        );
+
+        this._lastRegionStartX = -1;
+        this._lastRegionStartY = -1;
+        this._lastRegionVisibility = null;
+
+        this._regionAnimFrame = 0;
+
+
+    };
+
+    // ==============================
+    // UPDATE LOOP
+    // ==============================
+    const _updateTilemap = Spriteset_Map.prototype.updateTilemap;
+    Spriteset_Map.prototype.updateTilemap = function () {
+        _updateTilemap.call(this);
+
+
+        this.updateRegionUpperSprites();
+        this.updateRegionAutotiles();
+        this.updateRegionAlpha();
+
+        if (this._regionUpperSprites) {
+            this._regionUpperSprites.x = -this._tilemap.origin.x;
+            this._regionUpperSprites.y = -this._tilemap.origin.y;
+            this._regionUpperSprites.sortChildren();
         }
 
-        const cols = 8;
-        const col = localId % cols;
-        const row = Math.floor(localId / cols);
-
-        sx = col * tw;
-        sy = row * th;
-
-        return {
-            index: index,
-            sx: sx,
-            sy: sy
-        };
-    }
+        if (this._regionLower) {
+            this._regionLower.origin.x = this._tilemap.origin.x;
+            this._regionLower.origin.y = this._tilemap.origin.y;
+        }
 
 
-    function drawAutotileToContainer(container, region, bitmaps, tileId, x, y, z, tw, th) {
+    };
+
+    // ==============================
+    // SMART RENDERING
+    // ==============================
+    Spriteset_Map.prototype.updateRegionUpperSprites = function () {
+        if (!this._regionUpperSprites) return;
+
+
+        const tw = $gameMap.tileWidth();
+        const th = $gameMap.tileHeight();
+
+        const startX = Math.floor(this._tilemap.origin.x / tw);
+        const startY = Math.floor(this._tilemap.origin.y / th);
+
+        // CACHE CHECK
+        if (startX === this._lastRegionStartX &&
+            startY === this._lastRegionStartY) {
+            return;
+        }
+
+        this._lastRegionStartX = startX;
+        this._lastRegionStartY = startY;
+
+        const screenTileW = Math.ceil(Graphics.width / tw) + 2;
+        const screenTileH = Math.ceil(Graphics.height / th) + 2;
+
+        const newMap = {};
+
+        for (let y = 0; y < screenTileH; y++) {
+            for (let x = 0; x < screenTileW; x++) {
+
+                const mapX = startX + x;
+                const mapY = startY + y;
+
+                if (!$gameMap.isValid(mapX, mapY)) continue;
+
+                const region = $gameMap.regionId(mapX, mapY);
+                if (REGION_ALPHA[region] === undefined) continue;
+
+                const key = `${mapX},${mapY}`;
+                newMap[key] = true;
+
+                if (this._regionSpriteMap[key]) continue;
+
+                let container = this._regionSpritePool.pop();
+                if (!container) container = new PIXI.Container();
+
+                container.removeChildren();
+                container._a1 = null;
+
+                for (let z = 0; z < 4; z++) {
+                    const tileId = $gameMap.tileId(mapX, mapY, z);
+                    if (!tileId) continue;
+
+                    if (Tilemap.isAutotile(tileId)) {
+                        this._drawAutotile(container, tileId);
+                    } else {
+                        const frame = getTileFrameMZ(tileId, tw, th);
+                        const sprite = new Sprite(this._regionBitmaps[frame.index]);
+
+                        sprite.setFrame(frame.sx, frame.sy, tw, th);
+                        sprite.x = 0;
+                        sprite.y = 0;
+
+                        container.addChild(sprite);
+                    }
+                }
+
+                container.x = mapX * tw;
+                container.y = mapY * th;
+                container.region = region;
+
+                // PERFECT SORT (feet position)
+                container.z = container.y + th;
+
+                this._regionUpperSprites.addChild(container);
+                this._regionSpriteMap[key] = container;
+            }
+        }
+
+        // CLEANUP
+        for (const key in this._regionSpriteMap) {
+            if (!newMap[key]) {
+                const c = this._regionSpriteMap[key];
+                this._regionUpperSprites.removeChild(c);
+                this._regionSpritePool.push(c);
+                delete this._regionSpriteMap[key];
+            }
+        }
+
+
+    };
+
+    // ==============================
+    // AUTOTILES
+    // ==============================
+    Spriteset_Map.prototype._drawAutotile = function (container, tileId) {
+
+
+        const tw = $gameMap.tileWidth();
+        const th = $gameMap.tileHeight();
+        const w1 = tw / 2;
+        const h1 = th / 2;
+
         const kind = Tilemap.getAutotileKind(tileId);
         const shape = Tilemap.getAutotileShape(tileId);
-        const tileKey = `{x:${x},y:${y},tileId:${tileId}}`;
+
         const tx = kind % 8;
         const ty = Math.floor(kind / 8);
 
@@ -125,282 +255,194 @@
         let bx = 0;
         let by = 0;
 
-        const w1 = tw / 2;
-        const h1 = th / 2;
-
-        // — A1 (animated) —
+        // A1 animated
         if (Tilemap.isTileA1(tileId)) {
-            if (!container._a1Sprites) container._a1Sprites = {};
-            const tileKey = `${x},${y}`;
-            if (container._a1Sprites[tileKey]) return; // Already created
 
-            container._a1Sprites[tileKey] = [];
+            if (!container._a1) container._a1 = [];
 
-            const isWaterfall = (kind >= 4 && kind % 2 === 1);
-            const frameCount = isWaterfall ? 3 : 4; // Waterfall=3, water=4
-            const w1 = tw / 2;
-            const h1 = th / 2;
+            const frameCount = (kind >= 4 && kind % 2 === 1) ? 3 : 4;
 
             for (let frame = 0; frame < frameCount; frame++) {
+
                 const frameSprites = [];
-                let bx = 0;
-                let by = 0;
                 let table = Tilemap.FLOOR_AUTOTILE_TABLE;
 
-                const tx = kind % 8;
-                const ty = Math.floor(kind / 8);
-                const waterSurfaceIndex = [0, 1, 2, 1][frame % 4];
+                const water = [0, 1, 2, 1][frame % 4];
 
-                if (kind === 0) { bx = waterSurfaceIndex * 2; by = 0; }
-                else if (kind === 1) { bx = waterSurfaceIndex * 2; by = 3; }
+                if (kind === 0) { bx = water * 2; by = 0; }
+                else if (kind === 1) { bx = water * 2; by = 3; }
                 else if (kind === 2) { bx = 6; by = 0; }
                 else if (kind === 3) { bx = 6; by = 3; }
                 else {
                     bx = Math.floor(tx / 4) * 8;
                     by = ty * 6 + (Math.floor(tx / 2) % 2) * 3;
-                    if (kind % 2 === 0) bx += waterSurfaceIndex * 2; // water
-                    else { bx += 6; table = Tilemap.WATERFALL_AUTOTILE_TABLE; by += frame % 3; } // waterfall
+
+                    if (kind % 2 === 0) bx += water * 2;
+                    else {
+                        bx += 6;
+                        table = Tilemap.WATERFALL_AUTOTILE_TABLE;
+                        by += frame % 3;
+                    }
                 }
 
-                const quarterTable = table[shape];
+                const qTable = table[shape];
+
                 for (let i = 0; i < 4; i++) {
-                    const qsx = quarterTable[i][0];
-                    const qsy = quarterTable[i][1];
-                    const sx1 = (bx * 2 + qsx) * w1;
-                    const sy1 = (by * 2 + qsy) * h1;
+                    const sx = (bx * 2 + qTable[i][0]) * w1;
+                    const sy = (by * 2 + qTable[i][1]) * h1;
 
-                    const sprite = new Sprite(bitmaps[0]);
-                    sprite.setFrame(sx1, sy1, w1, h1);
-                    sprite.x = x + (i % 2) * w1;
-                    sprite.y = y + Math.floor(i / 2) * h1;
-                    sprite.visible = (frame === 0); // Show first frame initially
+                    const s = new Sprite(this._regionBitmaps[0]);
+                    s.setFrame(sx, sy, w1, h1);
+                    s.x = (i % 2) * w1;
+                    s.y = Math.floor(i / 2) * h1;
+                    s.visible = (frame === 0);
 
-                    sprite._kind = kind;   // Store kind for update
-                    sprite._shape = shape; // Store shape for update
-                    sprite.z = z
-                    sprite.region = region
-                    container.addChild(sprite);
-                    frameSprites.push(sprite);
+                    container.addChild(s);
+                    frameSprites.push(s);
                 }
 
-                container._a1Sprites[tileKey].push(frameSprites);
+                container._a1.push(frameSprites);
             }
-            return; // skip A2/A3/A4
+
+            return;
         }
 
-        // — A2 (ground) —
-        else if (Tilemap.isTileA2(tileId)) {
+        // A2–A4
+        if (Tilemap.isTileA2(tileId)) {
             tilesetIndex = 1;
-            autotileTable = Tilemap.FLOOR_AUTOTILE_TABLE;
-
             bx = tx * 2;
             by = (ty - 2) * 3;
-        }
-        // — A3 (building walls) —
-        else if (Tilemap.isTileA3(tileId)) {
+        } else if (Tilemap.isTileA3(tileId)) {
             tilesetIndex = 2;
             autotileTable = Tilemap.WALL_AUTOTILE_TABLE;
-
             bx = tx * 2;
             by = (ty - 6) * 2;
-        }
-        // — A4 (walls/ceilings) —
-        else if (Tilemap.isTileA4(tileId)) {
+        } else if (Tilemap.isTileA4(tileId)) {
             tilesetIndex = 3;
-
             bx = tx * 2;
-            // MZ uses a non‑integer pattern here
-            by = Math.floor((ty - 10) * 2.5 + (ty % 2 === 1 ? 0.5 : 0));
-
-            // odd shapes use the wall table
-            if (ty % 2 === 1) {
-                autotileTable = Tilemap.WALL_AUTOTILE_TABLE;
-            } else {
-                autotileTable = Tilemap.FLOOR_AUTOTILE_TABLE;
-            }
+            by = Math.floor((ty - 10) * 2.5 + (ty % 2 ? 0.5 : 0));
+            autotileTable = (ty % 2)
+                ? Tilemap.WALL_AUTOTILE_TABLE
+                : Tilemap.FLOOR_AUTOTILE_TABLE;
         }
 
         const table = autotileTable[shape];
         if (!table) return;
 
-
-        const bitmap = bitmaps[tilesetIndex];
+        const bitmap = this._regionBitmaps[tilesetIndex];
 
         for (let i = 0; i < 4; i++) {
-            const qsx = table[i][0];
-            const qsy = table[i][1];
+            const sx = (bx * 2 + table[i][0]) * w1;
+            const sy = (by * 2 + table[i][1]) * h1;
 
-            const sx1 = (bx * 2 + qsx) * w1;
-            const sy1 = (by * 2 + qsy) * h1;
+            const s = new Sprite(bitmap);
+            s.setFrame(sx, sy, w1, h1);
+            s.x = (i % 2) * w1;
+            s.y = Math.floor(i / 2) * h1;
 
-            const sprite = new Sprite(bitmap);
-            sprite.setFrame(sx1, sy1, w1, h1);
-
-            sprite.x = x + (i % 2) * w1;
-            sprite.y = y + Math.floor(i / 2) * h1;
-            sprite.z = z
-            sprite.region = region
-            container.addChild(sprite);
-        }
-    }
-
-
-
-
-
-    /* -------------------------- Upper Layer (Sprites) -------------------------- */
-    Spriteset_Map.prototype.createRegionUpperLayerSprites = function () {
-        const tileset = $gameMap.tileset();
-        if (!tileset) return;
-
-        this._regionUpperSprites = new PIXI.Container();
-        const bitmaps = tileset.tilesetNames.map(name => ImageManager.loadTileset(name || ""));
-
-        const tw = $gameMap.tileWidth();
-        const th = $gameMap.tileHeight();
-
-        this._regionShapes = new PIXI.Container();
-
-        for (let y = 0; y < $gameMap.height(); y++) {
-            for (let x = 0; x < $gameMap.width(); x++) {
-
-                const region = $gameMap.regionId(x, y);
-                if (!REGION_ID.includes(region)) continue;
-
-                let z = 0
-
-                for (z = 0; z < 4; z++) {
-                    const tileId = $gameMap.tileId(x, y, z);
-
-                    if (!tileId) continue;
-
-
-                    if (Tilemap.isAutotile(tileId)) {
-                        drawAutotileToContainer(this._regionUpperSprites, region, bitmaps, tileId, x * tw, y * th, z, tw, th);
-                    } else {
-                        const frame = getTileFrameMZ(tileId, tw, th);
-                        const tilesetIndex = frame.index;
-                        const sprite = new Sprite(bitmaps[tilesetIndex]);
-                        sprite.setFrame(frame.sx, frame.sy, tw, th);
-
-                        sprite.x = x * tw;
-                        sprite.y = y * th;
-
-
-                        sprite.region = region;
-                        this._regionUpperSprites.addChild(sprite);
-                    }
-
-                    /* -------- DEBUG OUTLINE -------- */
-                    if (DEBUG_OUTLINE) {
-                        const shape = new PIXI.Graphics();
-                        shape.lineStyle(2, 0xff0000);
-                        shape.beginFill(0xff0000, 0.4);
-                        shape.drawRect(2, 2, tw - 4, th - 4);
-                        shape.endFill();
-                        shape.x = x * tw;
-                        shape.y = y * th;
-                        shape.z = z
-                        this._regionShapes.addChild(shape);
-                    }
-                }
-            }
+            container.addChild(s);
         }
 
-        this._tilemap.parent.addChild(this._regionUpperSprites);
 
-        if (DEBUG_OUTLINE) {
-            this._tilemap.parent.addChild(this._regionShapes);
-        }
     };
 
-    Spriteset_Map.prototype.updateRegionAlpha = function () {
-        const visible = $gameSwitches.value(1);
-        this._regionUpperSprites.children.forEach(sprite => {
-            const alpha = sprite.region !== undefined
-                ? (REGION_ALPHA[sprite.region] ?? 1)
-                : 0.5;
-            sprite.alpha = visible ? alpha : 1;
-        });
-    };
+    // ==============================
+    // AUTOTILE ANIMATION
+    // ==============================
+    Spriteset_Map.prototype.updateRegionAutotiles = function () {
+        this._regionAnimFrame++;
 
 
+        const frame = Math.floor(this._regionAnimFrame / 30);
 
+        for (const key in this._regionSpriteMap) {
+            const c = this._regionSpriteMap[key];
+            if (!c._a1) continue;
 
+            const index = frame % c._a1.length;
 
-
-
-    function updateA1Sprites(container, tilemap) {
-        if (!container._a1Sprites) return;
-        const animationFrame = container._animationFrame || 0;
-
-        for (const tileKey in container._a1Sprites) {
-            const frames = container._a1Sprites[tileKey];
-            if (!frames || frames.length === 0) continue;
-
-            const firstSprite = frames[0][0];
-            const kind = firstSprite._kind ?? 0;
-            const frameCount = (kind >= 4 && kind % 2 === 1) ? 3 : 4;
-
-            const frameIndex = Math.floor(animationFrame / 15) % frameCount;
-
-            frames.forEach((frameSprites, idx) => {
-                const visible = (idx === frameIndex);
-                frameSprites.forEach(s => s.visible = visible);
+            c._a1.forEach((f, i) => {
+                const visible = (i === index);
+                f.forEach(s => s.visible = visible);
             });
         }
-    }
 
-    // --- Update region layer ---
-    const _Spriteset_Map_updateTilemap = Spriteset_Map.prototype.updateTilemap;
-    Spriteset_Map.prototype.updateTilemap = function () {
-        _Spriteset_Map_updateTilemap.call(this);
 
-        /*
-       if (this._regionUpper) {
-           
-           this._regionUpper.origin.x = this._tilemap.origin.x;
-           this._regionUpper.origin.y = this._tilemap.origin.y;
-           this._regionUpper.alpha=0.5
-           this._regionUpper.z=20
-           
-       }*/
-
-        if (this._regionUpperSprites) {
-            this._regionUpperSprites.x = -this._tilemap.origin.x;
-            this._regionUpperSprites.y = -this._tilemap.origin.y;
-
-            this.updateRegionAlpha();
-
-            if (this._regionUpperSprites && this._regionUpperSprites._a1Sprites) {
-                if (!this._regionUpperSprites._animationFrame) this._regionUpperSprites._animationFrame = 0;
-                // Advance every 15 frames (same speed as MZ)
-                if (Graphics.frameCount % 2 === 0) {
-                    this._regionUpperSprites._animationFrame++;
-                }
-
-                updateA1Sprites(this._regionUpperSprites, this._regionUpperSprites);
-            }
-
-            //updateA1Sprites(this._regionUpperSprites, this._tilemap);
-        }
-
-        if (this._regionLower) {
-            this._regionLower.origin.x = this._tilemap.origin.x;
-            this._regionLower.origin.y = this._tilemap.origin.y;
-            //this._regionLower.alpha=0
-
-        }
-
-        if (DEBUG_OUTLINE && this._regionShapes) {
-            this._regionShapes.x = -this._tilemap.origin.x;
-            this._regionShapes.y = -this._tilemap.origin.y;
-        }
     };
 
 
 
+    Spriteset_Map.prototype.updateRegionAlpha = function () {
+
+        $gameSystem._under = $gameSystem._under ?? true;
+
+        const pathfind = $gameSwitches.value(1);
+        const visible = $gameSystem._under;
+
+        //   LOWER LAYER
+        if (this._regionLower) {
+            this._regionLower.alpha = pathfind ? 1 : 0;
+        }
+
+        if (pathfind === this._lastPathfindState &&
+            visible === this._lastRegionVisibility) {
+            return;
+        }
+
+        this._lastPathfindState = pathfind;
+        this._lastRegionVisibility = visible;
+
+
+
+        //  UPPER LAYERS
+        for (const key in this._regionSpriteMap) {
+            const c = this._regionSpriteMap[key];
+
+            let alpha 
+            const val = REGION_ALPHA[c.region];;
+
+            if (typeof val !== "number" || val < 0 || val > 1) {
+                alpha =  1
+            }
+            else if (pathfind) {
+                alpha =  0.5;
+            } else if (visible) {
+                alpha = val ?? 1;
+            } else {
+                alpha = 1;
+            }
+            c.alpha = alpha;
+        }
+    };
+
+
+    // ==============================
+    // TILE FRAME
+    // ==============================
+    function getTileFrameMZ(tileId, tw, th) {
+
+
+        let index = 0;
+        let localId = 0;
+
+        if (tileId >= 1536) {
+            index = 4;
+            localId = tileId - 1536;
+        } else {
+            index = Math.floor(tileId / 256) + 5;
+            localId = tileId % 256;
+        }
+
+        const col = localId % 8;
+        const row = Math.floor(localId / 8);
+
+        return {
+            index,
+            sx: col * tw,
+            sy: row * th
+        };
+
+
+    }
 
 })();
-
-
