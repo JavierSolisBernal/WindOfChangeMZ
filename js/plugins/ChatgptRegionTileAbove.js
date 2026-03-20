@@ -25,9 +25,14 @@
         "10,12": { setX: 11, setY: 12 }
     };
 
-    function getTileIdForRegion(regionId) {
-        return regionTileMap[regionId] || 0;
+   function evalCondition(condition) {
+    try {
+        return !!Function("return (" + condition + ")")();
+    } catch (e) {
+        console.error("Region Plugin: invalid condition ->", condition);
+        return false;
     }
+}
 
     function getTileIdAt(regionId, x, y) {
         const mapping = tileMap[`${x},${y}`];
