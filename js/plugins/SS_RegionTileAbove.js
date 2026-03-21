@@ -518,7 +518,7 @@
             const c = this._regionSpriteMap[key];
 
             let alpha
-            const val = REGION_ALPHA[c.region];;
+            const val = REGION_ALPHA[c.region];
 
             if (typeof val !== "number" || val < 0 || val > 1) {
                 alpha = 1
@@ -526,7 +526,7 @@
             else if (pathfind) {
                 alpha = 0.5;
             } else if (visible) {
-                alpha = val ?? 1;
+                alpha = val;
             } else {
                 alpha = 1;
             }
