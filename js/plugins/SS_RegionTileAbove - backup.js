@@ -1,13 +1,20 @@
 /*:
 * @target MZ
 * @plugindesc Region tiles rendered above characters (optimized + autotiles + smart caching)
-* @author Squall_seawave + ChatGPT
-  */
+* @author Squall_seawave 
+*
+* @param CustomCondition
+* @text Customcondition
+* @desc addcondition
+* @type string
+* @default $gameSwitches.value(1)
+*/ 
 
 (() => {
-
-
-
+ 
+    const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
+    const params = PluginManager.parameters(pluginName);
+    const Customcondition =  (params.CustomCondition || "" )!==""? params.CustomCondition:false
     const REGION_ALPHA = {
         254: 2,
         255: 0.65,
@@ -25,14 +32,16 @@
         "10,12": { setX: 11, setY: 12 }
     };
 
-   function evalCondition(condition) {
-    try {
-        return !!Function("return (" + condition + ")")();
-    } catch (e) {
-        console.error("Region Plugin: invalid condition ->", condition);
-        return false;
+    function evalCondition(condition) {
+         try {
+            return !!Function("return (" + condition + ")")();
+        } catch (e) {
+            console.error("Region Plugin: invalid condition ->", condition);
+            return false;
+        }
     }
-}
+
+   
 
     function getTileIdAt(regionId, x, y) {
         const mapping = tileMap[`${x},${y}`];
@@ -84,14 +93,14 @@
 
 
                 if (regionTileMap[region] !== undefined) tileId = getTileIdAt(region, x, y)
-                    // NOTE:
-                    //Intentionally push only 1 value per tile instead of 6.
-                    // This uses Tilemap as a flat tile stream
-                    // Do NOT convert to 6-layer format or rendering will break.
-                    //correct format
-                    //this._regionLower._mapData.push(tileId, 0, 0, 0, 0, 0);
-                    this._regionLower._mapData.push(tileId);
-                
+                // NOTE:
+                //Intentionally push only 1 value per tile instead of 6.
+                // This uses Tilemap as a flat tile stream
+                // Do NOT convert to 6-layer format or rendering will break.
+                //correct format
+                //this._regionLower._mapData.push(tileId, 0, 0, 0, 0, 0);
+                this._regionLower._mapData.push(tileId);
+
 
             }
         }
@@ -388,7 +397,7 @@
 
         $gameSystem._under = $gameSystem._under ?? true;
 
-        const pathfind = $gameSwitches.value(1);
+        const pathfind = evalCondition (Customcondition) ;
         const visible = $gameSystem._under;
 
         //   LOWER LAYER
@@ -460,7 +469,7 @@
     const _destroy = Spriteset_Map.prototype.destroy;
     Spriteset_Map.prototype.destroy = function (options) {
         if (this._regionUpperSprites) {
-            this._regionUpperSprites.removeChildren(); 
+            this._regionUpperSprites.removeChildren();
             this._regionUpperSprites.destroy({ children: true });
         }
 
