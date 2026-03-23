@@ -15,11 +15,20 @@
     const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
     const params = PluginManager.parameters(pluginName);
     const Customcondition = (params.CustomCondition || "") !== "" ? params.CustomCondition : false
+
+    /*
     const REGION_ALPHA = {
         254: 2,
         255: 0.65,
         2: 0.65
 
+    };
+    */
+
+    const REGION_ALPHA = {
+    254: { alpha: 1, force: true },
+    255: { alpha: 0.65 },
+    2: { alpha: 0.65 }
     };
 
     const regionTileMap = {
@@ -29,7 +38,7 @@
     };
 
     const tileMap = {
-        "10,12": { setX: 11, setY: 12 }
+        "10,12": { setX: 6, setY: 11 }
     };
 
     function evalCondition(condition) {
@@ -41,16 +50,16 @@
         }
     }
 
-
+    const conditionFn = Customcondition
+        ? Function("return (" + Customcondition + ")")
+        : () => false;
 
     function getTileIdAt(regionId, x, y) {
         const mapping = tileMap[`${x},${y}`];
 
         if (mapping) {
             const tileId = $gameMap.tileId(mapping.setX, mapping.setY, 0);
-            if (!Tilemap.isTileA1(tileId)) {
-                return tileId;
-            }
+            return tileId;
         }
 
         const tileIndex = regionTileMap[regionId] || 0;
@@ -73,9 +82,10 @@
     Spriteset_Map.prototype.createRegionLayer = function () {
         this._regionUpperSprites = new PIXI.Container();
         this._regionUpperSprites.sortableChildren = true;
-
+        this._regionNeedsSort = false;
         this._regionUpperSprites.z = 3.1; // above charactersa
         this._tilemap.addChild(this._regionUpperSprites);
+
 
         this._regionSpritePool = [];
         this._regionSpriteMap = {};
@@ -97,6 +107,7 @@
     Spriteset_Map.prototype.createRegionLowerLayer = function () {
         this._regionLowerSprites = new PIXI.Container();
         this._regionLowerSprites.sortableChildren = true;
+        this._regionLowerNeedsSort = false;
         this._regionLowerSprites.z = 1.1; // above layer 0, 
         this._tilemap.addChild(this._regionLowerSprites);
         //  LOWER-specific pools & maps
@@ -191,8 +202,9 @@
 
 
                 this._regionLowerSprites.addChild(container);
-                this._regionLowerSprites.sortChildren();
+
                 this._regionLowerMap[key] = container;
+                this._regionLowerNeedsSort = true;
             }
         }
 
@@ -247,13 +259,19 @@
         if (this._regionUpperSprites) {
             this._regionUpperSprites.x = -this._tilemap.origin.x;
             this._regionUpperSprites.y = -this._tilemap.origin.y;
-            this._regionUpperSprites.sortChildren();
+            if (this._regionNeedsSort) {
+                this._regionUpperSprites.sortChildren();
+                this._regionNeedsSort = false;
+            }
         }
 
         if (this._regionLowerSprites) {
             this._regionLowerSprites.x = -this._tilemap.origin.x;
             this._regionLowerSprites.y = -this._tilemap.origin.y;
-            this._regionLowerSprites.sortChildren();
+            if (this._regionLowerNeedsSort) {
+                this._regionLowerSprites.sortChildren();
+                this._regionLowerNeedsSort = false;
+            }
         }
 
 
@@ -335,6 +353,7 @@
                 container.z = container.y + th;
 
                 this._regionUpperSprites.addChild(container);
+                this._regionNeedsSort = true;
                 this._regionSpriteMap[key] = container;
             }
         }
@@ -495,8 +514,14 @@
 
         $gameSystem._under = $gameSystem._under ?? true;
 
-        const pathfind = evalCondition(Customcondition);
+        //const pathfind = evalCondition(Customcondition);
+        const pathfind = conditionFn();
         const visible = $gameSystem._under;
+        if ($gamePlayer._level > 0)
+            this._regionUpperSprites.z = 2.1;
+        else
+            this._regionUpperSprites.z = 3.1;
+
 
         //   LOWER LAYER
         if (this._regionLowerSprites) {
@@ -520,6 +545,21 @@
             let alpha
             const val = REGION_ALPHA[c.region];
 
+
+            const config = REGION_ALPHA[c.region];
+
+            if (!config) {
+                alpha = 1;
+            } else if (config.force) {
+                alpha = config.alpha;
+            } else if (pathfind) {
+                alpha = 0.5;
+            } else if (visible) {
+                alpha = config.alpha;
+            } else {
+                alpha = 1;
+            }
+            /*
             if (typeof val !== "number" || val < 0 || val > 1) {
                 alpha = 1
             }
@@ -530,6 +570,7 @@
             } else {
                 alpha = 1;
             }
+                */
             c.alpha = alpha;
 
         }
