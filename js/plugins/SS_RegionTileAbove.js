@@ -2,33 +2,86 @@
 * @target MZ
 * @plugindesc Region tiles rendered above characters (optimized + autotiles + smart caching)
 * @author Squall_seawave 
+ 
+* @param Rules
+* @text test
+* @desc Rules to check
+* @type struct<Rule>[]
 *
-* @param CustomCondition
-* @text Customcondition
-* @desc addcondition
-* @type string
-* @default $gameSwitches.value(1)
+*/
+
+/*~struct~Rule:
+ * @param Parameter
+ * @type select
+ * @default Switch
+ * @option Player
+ * @value Player
+ * @option Switch
+ * @value Switch
+ * @option Variable
+ * @value Variable
+ * @option GameMap
+ * @value GameMap
+ * @option Party
+ * @value Party
+ * @option SkillLearned
+ * @value SkillLearned
+ * @option System
+ * @value System
+ * @option Temp
+ * @value Temp
+ * 
+ * 
+ * @param subparameter
+ * @type string
+ * 
+ * @param id
+ * @type number
+ * @default 1
+ * 
+ * @param Comparison
+ * @type select
+ * @option Equal (===)
+ * @value ===
+ * @option Not Equal (!==)
+ * @value !==
+ * @option Less Than (<)
+ * @value <
+ * @option Less Than or Equal (<=)
+ * @value <=
+ * @option Greater Than (>)
+ * @value >
+ * @option Greater Than or Equal (>=)
+ * @value >=
+ * @option Not(!)
+ * @value Not
+ * @option IsInList
+ * @value IsInList
+ * @option TextContains
+ * @value TextContains
+ * @default ===
+ * 
+ * @param value
+ * @type string
+ * @default true
 */
 
 (() => {
-
     const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
     const params = PluginManager.parameters(pluginName);
-    const Customcondition = (params.CustomCondition || "") !== "" ? params.CustomCondition : false
-
-    /*
+    const rawRules = JSON.parse(params.Rules || "[]");
+    const Rules = rawRules.map(r => {
+        try {
+            return JSON.parse(r);
+        } catch (e) {
+            console.warn("Invalid rule:", r);
+            return null;
+        }
+    }).filter(r => r !== null);;
     const REGION_ALPHA = {
-        254: 2,
-        255: 0.65,
-        2: 0.65
-
-    };
-    */
-
-    const REGION_ALPHA = {
-    254: { alpha: 1, force: true },
-    255: { alpha: 0.65 },
-    2: { alpha: 0.65 }
+        254: { alpha: 1, force: true },
+        255: { alpha: 0.65 },
+        2: { alpha: 0.65 }
     };
 
     const regionTileMap = {
@@ -41,18 +94,135 @@
         "10,12": { setX: 6, setY: 11 }
     };
 
-    function evalCondition(condition) {
-        try {
-            return !!Function("return (" + condition + ")")();
-        } catch (e) {
-            console.error("Region Plugin: invalid condition ->", condition);
-            return false;
+
+    function safeAccess(obj, path) {
+        if (!obj || typeof path !== "string") return undefined;
+        if (!path) return obj;
+        path = path.trim();
+        // Remove leading dot if present
+        if (path.startsWith(".")) {
+            path = path.slice(1);
+        }
+
+        // Split path: "states.length" → ["states", "length"]
+        const parts = path.split(".");
+
+        let current = obj;
+
+        for (let key of parts) {
+            if (current == null) return undefined;
+
+            // Prevent prototype access
+            if (key === "__proto__" || key === "constructor" || key === "prototype") {
+                console.warn("Blocked unsafe key:", key);
+                return undefined;
+            }
+
+            if (!(key in current)) {
+                return undefined;
+            }
+
+            const value = current[key];
+            if (typeof value === "function" && value.length === 0) {
+                current = value.call(current);
+            } else {
+                current = value;
+            }
+        }
+
+        return current;
+    }
+
+    function getActualValue(rule) {
+        const id = Number(rule.id);
+        const sub = rule.subparameter || "";
+
+
+        switch (rule.Parameter) {
+
+            case "SkillLearned": {
+                return $gameParty.members().some(actor => {
+                    if (!actor) return false;
+                    return actor.isLearnedSkill(id);
+                });
+            }
+
+            case "Switch": return $gameSwitches.value(id);
+            case "Variable": return $gameVariables.value(id);
+            case "Party": {
+                if (id > 0) {
+                    const actor = $gameParty.members()[id - 1];
+                    if (!actor) return undefined;
+                    return sub ? safeAccess(actor, sub) : actor;
+                } else {
+                    return safeAccess($gameParty, sub);
+                }
+            }
+            case "Actors": {
+                const actor = $gameActors.actor(id);
+                if (!actor) return undefined;
+                return safeAccess(actor, sub)
+            }
+            case "Player": return safeAccess($gamePlayer, sub)
+            case "GameMap": return safeAccess($gameMap, sub);
+            case "System": return safeAccess($gameSystem, sub);
+            case "Temp": return safeAccess($gameTemp, sub);
+            default: return undefined
         }
     }
 
-    const conditionFn = Customcondition
-        ? Function("return (" + Customcondition + ")")
-        : () => false;
+    function sanitizeValue(value) {
+        if (value == null) return value;
+        let str = String(value).trim();
+        // Booleans
+        if (str == "true") return true;
+        if (str == "false") return false;
+        // Strip quotes
+        if (
+            (str.startsWith("'") && str.endsWith("'")) ||
+            (str.startsWith('"') && str.endsWith('"'))
+        ) {
+            str = str.slice(1, -1).trim();
+        }
+        // Numbers (after unquoting)
+        if (str !== "" && !Number.isNaN(Number(str))) {
+            return Number(str);
+        }
+        return String(str);
+    }
+    function evaluateRule(rule) {
+        const actual = getActualValue(rule);
+        const expected = sanitizeValue(rule.value);
+        const op = rule.Comparison;
+        switch (op) {
+            case "===": return actual === expected;
+            case "!==": return actual !== expected;
+            case ">": return actual > expected;
+            case "<": return actual < expected;
+            case ">=": return actual >= expected;
+            case "<=": return actual <= expected;
+            case "Not": return !actual
+            case "TextContains": return actual == null ? false : String(actual).includes(String(expected));
+            case "IsInList": {
+                if (expected == null) return false;
+                const list = String(expected).split(",").map(v => v.trim());
+                return list.some(v => String(v) === String(actual));
+            }
+            default: return false;
+        }
+    }
+    const conditionFn = () => {
+        let flag = true
+        for (const rule of Rules) {
+            if (!evaluateRule(rule)) {
+                flag = false
+                break
+            }
+        }
+
+        return flag
+    }
+
 
     function getTileIdAt(regionId, x, y) {
         const mapping = tileMap[`${x},${y}`];
@@ -66,6 +236,7 @@
         return tileIndex + 1536;
     }
 
+
     // ==============================
     // INIT
     // ==============================
@@ -76,6 +247,71 @@
         this.createRegionLayer();
     };
 
+
+    Spriteset_Map.prototype._resetRegionContainer = function (container) {
+        if (!container) return;
+
+        container.removeChildren();
+
+        // Clear animation cache
+        container._a1 = null;
+
+        // Reset transform
+        container.x = 0;
+        container.y = 0;
+        container.alpha = 1;
+        container.visible = true;
+
+        // Important: reset z-related properties
+        container.z = 0;
+        container.zIndex = 0;
+
+        return container;
+    };
+
+
+    // ==============================
+    // TILE FRAME
+    // ==============================
+    function getTileFrameMZ(tileId, tw, th) {
+
+
+        let index = 0;
+        let localId = 0;
+
+        if (tileId >= 1536) {
+            index = 4;
+            localId = tileId - 1536;
+        } else {
+            index = Math.floor(tileId / 256) + 5;
+            localId = tileId % 256;
+        }
+
+        const col = localId % 8;
+        const row = Math.floor(localId / 8);
+
+        return {
+            index,
+            sx: col * tw,
+            sy: row * th
+        };
+
+
+    }
+
+    const _destroy = Spriteset_Map.prototype.destroy;
+    Spriteset_Map.prototype.destroy = function (options) {
+        if (this._regionUpperSprites) {
+            this._regionUpperSprites.removeChildren();
+            this._regionUpperSprites.destroy({ children: true });
+        }
+
+        if (this._regionLowerSprites) {
+            this._regionLowerSprites.destroy();
+        }
+
+        _destroy.call(this, options);
+    };
 
 
 
@@ -240,43 +476,9 @@
     };
 
 
-    // ==============================
-    // UPDATE LOOP
-    // ==============================
-    const _updateTilemap = Spriteset_Map.prototype.updateTilemap;
-    Spriteset_Map.prototype.updateTilemap = function () {
-        _updateTilemap.call(this);
-
-
-        this.updateRegionLowerSprites();
-        this.updateRegionLowerAutotiles();
-
-
-        this.updateRegionUpperSprites();
-        this.updateRegionAutotiles();
-        this.updateRegionAlpha();
-
-        if (this._regionUpperSprites) {
-            this._regionUpperSprites.x = -this._tilemap.origin.x;
-            this._regionUpperSprites.y = -this._tilemap.origin.y;
-            if (this._regionNeedsSort) {
-                this._regionUpperSprites.sortChildren();
-                this._regionNeedsSort = false;
-            }
-        }
-
-        if (this._regionLowerSprites) {
-            this._regionLowerSprites.x = -this._tilemap.origin.x;
-            this._regionLowerSprites.y = -this._tilemap.origin.y;
-            if (this._regionLowerNeedsSort) {
-                this._regionLowerSprites.sortChildren();
-                this._regionLowerNeedsSort = false;
-            }
-        }
 
 
 
-    };
 
     // ==============================
     // SMART RENDERING
@@ -514,8 +716,8 @@
 
         $gameSystem._under = $gameSystem._under ?? true;
 
-        //const pathfind = evalCondition(Customcondition);
-        const pathfind = conditionFn();
+
+        const rulesPassed = conditionFn();
         const visible = $gameSystem._under;
         if ($gamePlayer._level > 0)
             this._regionUpperSprites.z = 2.1;
@@ -525,15 +727,15 @@
 
         //   LOWER LAYER
         if (this._regionLowerSprites) {
-            this._regionLowerSprites.alpha = pathfind ? 1 : 0;
+            this._regionLowerSprites.alpha = rulesPassed ? 1 : 0;
         }
 
-        if (pathfind === this._lastPathfindState &&
+        if (rulesPassed === this._lastRulesState  &&
             visible === this._lastRegionVisibility) {
             return;
         }
 
-        this._lastPathfindState = pathfind;
+        this._lastRulesState  = rulesPassed;
         this._lastRegionVisibility = visible;
 
 
@@ -543,34 +745,20 @@
             const c = this._regionSpriteMap[key];
 
             let alpha
-            const val = REGION_ALPHA[c.region];
-
-
             const config = REGION_ALPHA[c.region];
 
             if (!config) {
                 alpha = 1;
             } else if (config.force) {
                 alpha = config.alpha;
-            } else if (pathfind) {
+            } else if (rulesPassed) {
                 alpha = 0.5;
             } else if (visible) {
                 alpha = config.alpha;
             } else {
                 alpha = 1;
             }
-            /*
-            if (typeof val !== "number" || val < 0 || val > 1) {
-                alpha = 1
-            }
-            else if (pathfind) {
-                alpha = 0.5;
-            } else if (visible) {
-                alpha = val;
-            } else {
-                alpha = 1;
-            }
-                */
+
             c.alpha = alpha;
 
         }
@@ -578,48 +766,46 @@
     };
 
 
+
     // ==============================
-    // TILE FRAME
+    // UPDATE LOOP
     // ==============================
-    function getTileFrameMZ(tileId, tw, th) {
+    const _updateTilemap = Spriteset_Map.prototype.updateTilemap;
+    Spriteset_Map.prototype.updateTilemap = function () {
+        _updateTilemap.call(this);
 
 
-        let index = 0;
-        let localId = 0;
-
-        if (tileId >= 1536) {
-            index = 4;
-            localId = tileId - 1536;
-        } else {
-            index = Math.floor(tileId / 256) + 5;
-            localId = tileId % 256;
-        }
-
-        const col = localId % 8;
-        const row = Math.floor(localId / 8);
-
-        return {
-            index,
-            sx: col * tw,
-            sy: row * th
-        };
+        this.updateRegionLowerSprites();
+        this.updateRegionLowerAutotiles();
 
 
-    }
+        this.updateRegionUpperSprites();
+        this.updateRegionAutotiles();
+        this.updateRegionAlpha();
 
-    const _destroy = Spriteset_Map.prototype.destroy;
-    Spriteset_Map.prototype.destroy = function (options) {
         if (this._regionUpperSprites) {
-            this._regionUpperSprites.removeChildren();
-            this._regionUpperSprites.destroy({ children: true });
+            this._regionUpperSprites.x = -this._tilemap.origin.x;
+            this._regionUpperSprites.y = -this._tilemap.origin.y;
+            if (this._regionNeedsSort) {
+                this._regionUpperSprites.sortChildren();
+                this._regionNeedsSort = false;
+            }
         }
 
         if (this._regionLowerSprites) {
-            this._regionLowerSprites.destroy();
+            this._regionLowerSprites.x = -this._tilemap.origin.x;
+            this._regionLowerSprites.y = -this._tilemap.origin.y;
+            if (this._regionLowerNeedsSort) {
+                this._regionLowerSprites.sortChildren();
+                this._regionLowerNeedsSort = false;
+            }
         }
 
-        _destroy.call(this, options);
+
+
     };
+
+
 
 
 })();
