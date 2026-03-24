@@ -78,10 +78,16 @@
             return null;
         }
     }).filter(r => r !== null);;
-    const REGION_ALPHA = {
+    const REGION_CONFIG = {
         254: { alpha: 1, force: true },
         255: { alpha: 0.65 },
-        2: { alpha: 0.65 }
+        2: {
+            alpha: 0.65, 
+            levels:[
+                { level: 0, directions: ["L", "R"], visible:true},
+                { level: 1, directions: ["U", "D"] }
+            ] 
+            }
     };
 
     const regionTileMap = {
@@ -93,6 +99,8 @@
     const tileMap = {
         "10,12": { setX: 6, setY: 11 }
     };
+
+
 
 
     function safeAccess(obj, path) {
@@ -516,7 +524,7 @@
                 if (!$gameMap.isValid(mapX, mapY)) continue;
 
                 const region = $gameMap.regionId(mapX, mapY);
-                if (REGION_ALPHA[region] === undefined) continue;
+                if (REGION_CONFIG[region] === undefined) continue;
 
                 const key = `${mapX},${mapY}`;
                 newMap[key] = true;
@@ -719,7 +727,7 @@
 
         const rulesPassed = conditionFn();
         const visible = $gameSystem._under;
-        if ($gamePlayer._level > 0)
+        if ($gameSystem.Playerlevel > 0)
             this._regionUpperSprites.z = 2.1;
         else
             this._regionUpperSprites.z = 3.1;
@@ -727,15 +735,16 @@
 
         //   LOWER LAYER
         if (this._regionLowerSprites) {
-            this._regionLowerSprites.alpha = rulesPassed ? 1 : 0;
+            //this._regionLowerSprites.alpha = rulesPassed ? 1 : 0;
+            this._regionLowerSprites.visible = rulesPassed 
         }
 
-        if (rulesPassed === this._lastRulesState  &&
+        if (rulesPassed === this._lastRulesState &&
             visible === this._lastRegionVisibility) {
             return;
         }
 
-        this._lastRulesState  = rulesPassed;
+        this._lastRulesState = rulesPassed;
         this._lastRegionVisibility = visible;
 
 
@@ -745,7 +754,7 @@
             const c = this._regionSpriteMap[key];
 
             let alpha
-            const config = REGION_ALPHA[c.region];
+            const config = REGION_CONFIG[c.region];
 
             if (!config) {
                 alpha = 1;
@@ -760,8 +769,8 @@
             }
 
             c.alpha = alpha;
-
         }
+ 
 
     };
 
@@ -806,6 +815,13 @@
     };
 
 
-
+    Object.defineProperty(Game_System.prototype, "Playerlevel", {
+        get: function () {
+            return this._playerLevel || 0;
+        },
+        set: function (value) {
+            this._playerLevel = value;
+        }
+    });
 
 })();
