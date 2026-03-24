@@ -16,6 +16,8 @@
  * @default Switch
  * @option Player
  * @value Player
+ * @option Actors
+ * @value Actors
  * @option Switch
  * @value Switch
  * @option Variable
@@ -213,8 +215,10 @@
             case "TextContains": return actual == null ? false : String(actual).includes(String(expected));
             case "IsInList": {
                 if (expected == null) return false;
-                const list = String(expected).split(",").map(v => v.trim());
-                return list.some(v => String(v) === String(actual));
+
+                const list = String(expected).split(",").map(v => sanitizeValue(v.trim()));
+                
+                return list.some(v => v === actual);
             }
             default: return false;
         }
@@ -427,7 +431,9 @@
                     this._drawAutotile(container, tileId);
                 } else {
                     const frame = getTileFrameMZ(tileId, tw, th);
-                    const sprite = new Sprite(this._regionLowerBitmaps[frame.index]);
+                    const bitmap = this._regionLowerBitmaps[frame.index];
+                    if (!bitmap) continue;
+                    const sprite = new Sprite(bitmap);
 
                     sprite.setFrame(frame.sx, frame.sy, tw, th);
                     sprite.x = 0;
@@ -545,7 +551,9 @@
                         this._drawAutotile(container, tileId);
                     } else {
                         const frame = getTileFrameMZ(tileId, tw, th);
-                        const sprite = new Sprite(this._regionBitmaps[frame.index]);
+                        const bitmap = this._regionBitmaps[frame.index];
+                        if (!bitmap) continue;
+                        const sprite = new Sprite(bitmap);
 
                         sprite.setFrame(frame.sx, frame.sy, tw, th);
                         sprite.x = 0;
@@ -722,11 +730,11 @@
 
     Spriteset_Map.prototype.updateRegionAlpha = function () {
 
-        $gameSystem._under = $gameSystem._under ?? true;
+        
 
 
         const rulesPassed = conditionFn();
-        const visible = $gameSystem._under;
+        const visible = $gameSystem._under ?? true;
         if ($gameSystem.Playerlevel > 0)
             this._regionUpperSprites.z = 2.1;
         else
