@@ -335,11 +335,10 @@
     Spriteset_Map.prototype.createRegionLayer = function () {
         this._regionUpperSprites = new PIXI.Container();
         this._regionUpperSprites.sortableChildren = true;
-        this._regionNeedsSort = false;
-        this._regionUpperSprites.z = 3.1; // above charactersa
+        this._regionUpperSprites.z = 3.1; // above charctersa
         this._tilemap.addChild(this._regionUpperSprites);
 
-
+        this._regionNeedsSort = false;
         this._regionSpritePool = [];
         this._regionSpriteMap = {};
 
@@ -498,6 +497,42 @@
 
 
 
+        Spriteset_Map.prototype._buildRegionContainer = function(mapX, mapY) {
+            let container = this._regionSpritePool.pop();
+            if (!container) container = new PIXI.Container();
+
+            container.removeChildren();
+            container._a1 = null;
+
+            const tw = $gameMap.tileWidth();
+            const th = $gameMap.tileHeight();
+
+            for (let z = 0; z < 4; z++) {
+                const tileId = $gameMap.tileId(mapX, mapY, z);
+                if (!tileId) continue;
+
+                if (Tilemap.isAutotile(tileId)) {
+                    this._drawAutotile(container, tileId);
+                } else {
+                    const frame = getTileFrameMZ(tileId, tw, th);
+                    const bitmap = this._regionBitmaps[frame.index];
+                    if (!bitmap) continue;
+
+                    const sprite = new Sprite(bitmap);
+                    sprite.setFrame(frame.sx, frame.sy, tw, th);
+                    sprite.x = 0;
+                    sprite.y = 0;
+
+                    container.addChild(sprite);
+                }
+            }
+
+            container.x = mapX * tw;
+            container.y = mapY * th;
+
+            return container;
+        };
+
 
     // ==============================
     // SMART RENDERING
@@ -541,43 +576,19 @@
                 newMap[key] = true;
 
                 if (this._regionSpriteMap[key]) continue;
-
-                let container = this._regionSpritePool.pop();
-                if (!container) container = new PIXI.Container();
-
-                container.removeChildren();
-                container._a1 = null;
-
-                for (let z = 0; z < 4; z++) {
-                    const tileId = $gameMap.tileId(mapX, mapY, z);
-                    if (!tileId) continue;
-
-                    if (Tilemap.isAutotile(tileId)) {
-                        this._drawAutotile(container, tileId);
-                    } else {
-                        const frame = getTileFrameMZ(tileId, tw, th);
-                        const bitmap = this._regionBitmaps[frame.index];
-                        if (!bitmap) continue;
-                        const sprite = new Sprite(bitmap);
-
-                        sprite.setFrame(frame.sx, frame.sy, tw, th);
-                        sprite.x = 0;
-                        sprite.y = 0;
-
-                        container.addChild(sprite);
-                    }
-                }
-
-                container.x = mapX * tw;
-                container.y = mapY * th;
-                container.region = region;
+                
+                const c1 = this._buildRegionContainer(mapX, mapY);
+                const c2 = this._buildRegionContainer(mapX, mapY);
+                c1.region = region;
+                c2.region = region;
 
                 // PERFECT SORT (feet position)
-                container.z = container.y + th;
+                c1.z = c1.y + th;
+                c2.z = c2.y + th;
 
-                this._regionUpperSprites.addChild(container);
+                this._regionUpperSprites.addChild(c1);
                 this._regionNeedsSort = true;
-                this._regionSpriteMap[key] = container;
+                this._regionSpriteMap[key] = c1;
             }
         }
 
