@@ -351,6 +351,7 @@
         this._lastRegionVisibility = null;
 
         this._regionAnimFrame = 0;
+        this._regionNeedsRefresh = false
 
 
     };
@@ -497,41 +498,41 @@
 
 
 
-        Spriteset_Map.prototype._buildRegionContainer = function(mapX, mapY) {
-            let container = this._regionSpritePool.pop();
-            if (!container) container = new PIXI.Container();
+    Spriteset_Map.prototype._buildRegionContainer = function (mapX, mapY) {
+        let container = this._regionSpritePool.pop();
+        if (!container) container = new PIXI.Container();
 
-            container.removeChildren();
-            container._a1 = null;
+        container.removeChildren();
+        container._a1 = null;
 
-            const tw = $gameMap.tileWidth();
-            const th = $gameMap.tileHeight();
+        const tw = $gameMap.tileWidth();
+        const th = $gameMap.tileHeight();
 
-            for (let z = 0; z < 4; z++) {
-                const tileId = $gameMap.tileId(mapX, mapY, z);
-                if (!tileId) continue;
+        for (let z = 0; z < 4; z++) {
+            const tileId = $gameMap.tileId(mapX, mapY, z);
+            if (!tileId) continue;
 
-                if (Tilemap.isAutotile(tileId)) {
-                    this._drawAutotile(container, tileId);
-                } else {
-                    const frame = getTileFrameMZ(tileId, tw, th);
-                    const bitmap = this._regionBitmaps[frame.index];
-                    if (!bitmap) continue;
+            if (Tilemap.isAutotile(tileId)) {
+                this._drawAutotile(container, tileId);
+            } else {
+                const frame = getTileFrameMZ(tileId, tw, th);
+                const bitmap = this._regionBitmaps[frame.index];
+                if (!bitmap) continue;
 
-                    const sprite = new Sprite(bitmap);
-                    sprite.setFrame(frame.sx, frame.sy, tw, th);
-                    sprite.x = 0;
-                    sprite.y = 0;
+                const sprite = new Sprite(bitmap);
+                sprite.setFrame(frame.sx, frame.sy, tw, th);
+                sprite.x = 0;
+                sprite.y = 0;
 
-                    container.addChild(sprite);
-                }
+                container.addChild(sprite);
             }
+        }
 
-            container.x = mapX * tw;
-            container.y = mapY * th;
+        container.x = mapX * tw;
+        container.y = mapY * th;
 
-            return container;
-        };
+        return container;
+    };
 
 
     // ==============================
@@ -549,7 +550,8 @@
 
         // CACHE CHECK
         if (startX === this._lastRegionStartX &&
-            startY === this._lastRegionStartY) {
+            startY === this._lastRegionStartY &&
+            !this._regionNeedsRefresh) {
             return;
         }
 
@@ -576,19 +578,19 @@
                 newMap[key] = true;
 
                 if (this._regionSpriteMap[key]) continue;
+
+                const container = this._buildRegionContainer(mapX, mapY);
                 
-                const c1 = this._buildRegionContainer(mapX, mapY);
-                const c2 = this._buildRegionContainer(mapX, mapY);
-                c1.region = region;
-                c2.region = region;
+                container.region = region;
+                 
 
                 // PERFECT SORT (feet position)
-                c1.z = c1.y + th;
-                c2.z = c2.y + th;
+                container.z = container.y + th;
+                
 
-                this._regionUpperSprites.addChild(c1);
+                this._regionUpperSprites.addChild(container);
                 this._regionNeedsSort = true;
-                this._regionSpriteMap[key] = c1;
+                this._regionSpriteMap[key] = container;
             }
         }
 
@@ -601,7 +603,7 @@
                 delete this._regionSpriteMap[key];
             }
         }
-
+        this._regionNeedsRefresh=false
 
     };
 
@@ -766,7 +768,7 @@
 
         //   LOWER LAYER
         if (this._regionLowerSprites) {
-             this._regionLowerSprites.visible = !!rulesPassed;
+            this._regionLowerSprites.visible = !!rulesPassed;
         }
 
         if (rulesPassed === this._lastRulesState &&
@@ -854,7 +856,7 @@
             this._playerLevel = value;
             const scene = SceneManager._scene;
             if (scene && scene._spriteset) {
-                scene._spriteset.updateRegionAlpha();
+                scene._spriteset._regionNeedsRefresh = true;
             }
         }
     });
