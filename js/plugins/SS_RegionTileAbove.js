@@ -71,7 +71,12 @@
 (() => {
     const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
     const params = PluginManager.parameters(pluginName);
-    const rawRules = JSON.parse(params.Rules || "[]");
+    let rawRules = [];
+    try {
+        rawRules = JSON.parse(params.Rules || "[]");
+    } catch (e) {
+        console.warn("Invalid Rules param");
+    }
     const Rules = rawRules.map(r => {
         try {
             return JSON.parse(r);
@@ -84,12 +89,12 @@
         254: { alpha: 1, force: true },
         255: { alpha: 0.65 },
         2: {
-            alpha: 0.65, 
-            levels:[
-                { level: 0, directions: ["L", "R"], visible:true},
+            alpha: 0.65,
+            levels: [
+                { level: 0, directions: ["L", "R"], visible: true },
                 { level: 1, directions: ["U", "D"] }
-            ] 
-            }
+            ]
+        }
     };
 
     const regionTileMap = {
@@ -217,7 +222,7 @@
                 if (expected == null) return false;
 
                 const list = String(expected).split(",").map(v => sanitizeValue(v.trim()));
-                
+
                 return list.some(v => v === actual);
             }
             default: return false;
@@ -319,7 +324,7 @@
         }
 
         if (this._regionLowerSprites) {
-            this._regionLowerSprites.destroy();
+            this._regionLowerSprites.destroy({ children: true });
         }
 
         _destroy.call(this, options);
@@ -647,7 +652,10 @@
                     const sx = (bx * 2 + qTable[i][0]) * w1;
                     const sy = (by * 2 + qTable[i][1]) * h1;
 
-                    const s = new Sprite(this._regionBitmaps[0]);
+                    const bitmap = this._regionBitmaps[0];
+                    if (!bitmap) continue;
+
+                    const s = new Sprite(bitmap);
                     s.setFrame(sx, sy, w1, h1);
                     s.x = (i % 2) * w1;
                     s.y = Math.floor(i / 2) * h1;
@@ -686,7 +694,7 @@
         if (!table) return;
 
         const bitmap = this._regionBitmaps[tilesetIndex];
-
+        if (!bitmap) return;
         for (let i = 0; i < 4; i++) {
             const sx = (bx * 2 + table[i][0]) * w1;
             const sy = (by * 2 + table[i][1]) * h1;
@@ -730,10 +738,14 @@
 
     Spriteset_Map.prototype.updateRegionAlpha = function () {
 
-        
 
 
-        const rulesPassed = conditionFn();
+        if (this._lastRulesCheckFrame !== Graphics.frameCount) {
+            this._cachedRulesResult = conditionFn();
+            this._lastRulesCheckFrame = Graphics.frameCount;
+        }
+        const rulesPassed = this._cachedRulesResult;
+
         const visible = $gameSystem._under ?? true;
         if ($gameSystem.Playerlevel > 0)
             this._regionUpperSprites.z = 2.1;
@@ -743,8 +755,7 @@
 
         //   LOWER LAYER
         if (this._regionLowerSprites) {
-            //this._regionLowerSprites.alpha = rulesPassed ? 1 : 0;
-            this._regionLowerSprites.visible = rulesPassed 
+             this._regionLowerSprites.visible = !!rulesPassed;
         }
 
         if (rulesPassed === this._lastRulesState &&
@@ -754,8 +765,6 @@
 
         this._lastRulesState = rulesPassed;
         this._lastRegionVisibility = visible;
-
-
 
         //  UPPER LAYERS
         for (const key in this._regionSpriteMap) {
@@ -778,7 +787,10 @@
 
             c.alpha = alpha;
         }
- 
+
+
+
+
 
     };
 
@@ -829,6 +841,10 @@
         },
         set: function (value) {
             this._playerLevel = value;
+            const scene = SceneManager._scene;
+            if (scene && scene._spriteset) {
+                scene._spriteset.updateRegionAlpha();
+            }
         }
     });
 
