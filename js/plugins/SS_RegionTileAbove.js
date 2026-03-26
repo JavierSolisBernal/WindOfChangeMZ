@@ -90,7 +90,8 @@
         255: { alpha: 0.65 },
         2: {
             alpha: 0.65,
-            levels: [
+            level: 1,
+            pass_levels: [
                 { level: 0, directions: ["L", "R"], visible: true },
                 { level: 1, directions: ["U", "D"] }
             ]
@@ -318,11 +319,14 @@
 
     const _destroy = Spriteset_Map.prototype.destroy;
     Spriteset_Map.prototype.destroy = function (options) {
-        if (this._regionUpperSprites) {
-            this._regionUpperSprites.removeChildren();
-            this._regionUpperSprites.destroy({ children: true });
+        if (this._regionUpperSpritesAbove) {
+            this._regionUpperSpritesAbove.removeChildren();
+            this._regionUpperSpritesAbove.destroy({ children: true });
         }
-
+        if (this._regionUpperSpritesBelow) {
+            this._regionUpperSpritesBelow.removeChildren();
+            this._regionUpperSpritesBelow.destroy({ children: true });
+        }
         if (this._regionLowerSprites) {
             this._regionLowerSprites.destroy({ children: true });
         }
@@ -333,12 +337,19 @@
 
 
     Spriteset_Map.prototype.createRegionLayer = function () {
-        this._regionUpperSprites = new PIXI.Container();
-        this._regionUpperSprites.sortableChildren = true;
-        this._regionUpperSprites.z = 3.1; // above charctersa
-        this._tilemap.addChild(this._regionUpperSprites);
+        this._regionUpperSpritesAbove = new PIXI.Container();
+        this._regionUpperSpritesAbove.sortableChildren = true;
+        this._regionUpperSpritesAbove.z = 3.1; // above charcters
+        this._tilemap.addChild(this._regionUpperSpritesAbove);
 
-        this._regionNeedsSort = false;
+        this._regionUpperSpritesBelow = new PIXI.Container();
+        this._regionUpperSpritesBelow.sortableChildren = true;
+        this._regionUpperSpritesBelow.z = 2.1; // below charcters
+        this._tilemap.addChild(this._regionUpperSpritesBelow);
+
+
+        this._regionNeedsSortAbove = false;
+        this._regionNeedsSortBelow = false;
         this._regionSpritePool = [];
         this._regionSpriteMap = {};
 
@@ -538,8 +549,8 @@
     // ==============================
     // SMART RENDERING
     // ==============================
-    Spriteset_Map.prototype.updateRegionUpperSprites = function () {
-        if (!this._regionUpperSprites) return;
+    Spriteset_Map.prototype.updateRegionUpperSpritesbackup = function () {
+        if (!this._regionUpperSpritesAbove || !this._regionUpperSpritesBelow) return;
 
 
         const tw = $gameMap.tileWidth();
@@ -554,6 +565,7 @@
             !this._regionNeedsRefresh) {
             return;
         }
+
 
         this._lastRegionStartX = startX;
         this._lastRegionStartY = startY;
@@ -580,16 +592,21 @@
                 if (this._regionSpriteMap[key]) continue;
 
                 const container = this._buildRegionContainer(mapX, mapY);
-                
+
                 container.region = region;
-                 
+
 
                 // PERFECT SORT (feet position)
                 container.z = container.y + th;
-                
 
-                this._regionUpperSprites.addChild(container);
-                this._regionNeedsSort = true;
+                console.log(key + ":" + $gameSystem.Playerlevel)
+                const parentcontainer = $gameSystem.Playerlevel < 1 ? this._regionUpperSpritesAbove : this._regionUpperSpritesBelow
+
+                parentcontainer.addChild(container);
+
+
+                this._regionNeedsSortAbove = true;
+                this._regionNeedsSortBelow = true;
                 this._regionSpriteMap[key] = container;
             }
         }
@@ -598,13 +615,123 @@
         for (const key in this._regionSpriteMap) {
             if (!newMap[key]) {
                 const c = this._regionSpriteMap[key];
-                this._regionUpperSprites.removeChild(c);
-                this._regionSpritePool.push(c);
+                 if (c && c.parent === this._regionUpperSpritesAbove) {
+                    this._regionUpperSpritesAbove.removeChild(c);
+                }
+                if (c && c.parent === this._regionUpperSpritesBelow) {
+                    this._regionUpperSpritesBelow.removeChild(c);
+                }
+                if (c) this._regionSpritePool.push(c);
                 delete this._regionSpriteMap[key];
             }
         }
-        this._regionNeedsRefresh=false
+        this._regionNeedsRefresh = false
 
+    };
+
+
+    Spriteset_Map.prototype.updateRegionUpperSprites = function () {
+        if (!this._regionUpperSpritesAbove || !this._regionUpperSpritesBelow) return;
+
+        const tw = $gameMap.tileWidth();
+        const th = $gameMap.tileHeight();
+
+        const startX = Math.floor(this._tilemap.origin.x / tw);
+        const startY = Math.floor(this._tilemap.origin.y / th);
+
+        // CACHE CHECK
+        if (startX === this._lastRegionStartX &&
+            startY === this._lastRegionStartY &&
+            !this._regionNeedsRefresh) {
+            return;
+        }
+
+        this._lastRegionStartX = startX;
+        this._lastRegionStartY = startY;
+
+        const screenTileW = Math.ceil(Graphics.width / tw) + 2;
+        const screenTileH = Math.ceil(Graphics.height / th) + 2;
+
+        const newMap = {};
+
+        // --- BUILD / ADD NEW REGION TILES ---
+        for (let y = 0; y < screenTileH; y++) {
+            for (let x = 0; x < screenTileW; x++) {
+                const mapX = startX + x;
+                const mapY = startY + y;
+
+                if (!$gameMap.isValid(mapX, mapY)) continue;
+
+                const region = $gameMap.regionId(mapX, mapY);
+                if (REGION_CONFIG[region] === undefined) continue;
+
+                const key = `${mapX},${mapY}`;
+                newMap[key] = true;
+
+                if (this._regionSpriteMap[key]) continue;
+
+                const container = this._buildRegionContainer(mapX, mapY);
+                container.region = region;
+
+                // Set default _level (can be customized per tile if needed)
+                container._level = REGION_CONFIG[region]?.level ?? 1;
+                
+
+                // Assign initial parent based on Playerlevel
+                const parentContainer = $gameSystem.Playerlevel < (container._level ?? 1)
+                    ? this._regionUpperSpritesAbove
+                    : this._regionUpperSpritesBelow;
+
+                parentContainer.addChild(container);
+
+                container.z = container.y + th;
+
+                this._regionSpriteMap[key] = container;
+                this._regionNeedsSortAbove = true;
+                this._regionNeedsSortBelow = true;
+            }
+        }
+
+        if (this._tilesToReparent) {
+            const toAbove = [];
+            const toBelow = [];
+
+            for (const c of this._regionUpperSpritesAbove.children) {
+                const shouldBeAbove = ($gameSystem.Playerlevel < (c._level ?? 1));
+                if (!shouldBeAbove) toBelow.push(c);
+            }
+
+            for (const c of this._regionUpperSpritesBelow.children) {
+                const shouldBeAbove = ($gameSystem.Playerlevel < (c._level ?? 1));
+                if (shouldBeAbove) toAbove.push(c);
+            }
+
+            for (const c of toBelow) {
+                this._regionUpperSpritesAbove.removeChild(c);
+                this._regionUpperSpritesBelow.addChild(c);
+            }
+
+            for (const c of toAbove) {
+                this._regionUpperSpritesBelow.removeChild(c);
+                this._regionUpperSpritesAbove.addChild(c);
+            }
+        }
+
+        this._regionNeedsSortAbove = true;
+        this._regionNeedsSortBelow = true;
+
+        // --- CLEANUP OLD TILES ---
+        for (const key in this._regionSpriteMap) {
+            if (!newMap[key]) {
+                const c = this._regionSpriteMap[key];
+                if (c && c.parent === this._regionUpperSpritesAbove) this._regionUpperSpritesAbove.removeChild(c);
+                if (c && c.parent === this._regionUpperSpritesBelow) this._regionUpperSpritesBelow.removeChild(c);
+                if (c) this._regionSpritePool.push(c);
+                delete this._regionSpriteMap[key];
+            }
+        }
+
+        this._regionNeedsRefresh = false;
     };
 
     // ==============================
@@ -760,11 +887,6 @@
         const rulesPassed = this._cachedRulesResult;
 
         const visible = $gameSystem._under ?? true;
-        if ($gameSystem.Playerlevel > 0)
-            this._regionUpperSprites.z = 2.1;
-        else
-            this._regionUpperSprites.z = 3.1;
-
 
         //   LOWER LAYER
         if (this._regionLowerSprites) {
@@ -825,14 +947,26 @@
         this.updateRegionAutotiles();
         this.updateRegionAlpha();
 
-        if (this._regionUpperSprites) {
-            this._regionUpperSprites.x = -this._tilemap.origin.x;
-            this._regionUpperSprites.y = -this._tilemap.origin.y;
-            if (this._regionNeedsSort) {
-                this._regionUpperSprites.sortChildren();
-                this._regionNeedsSort = false;
+        if (this._regionUpperSpritesAbove) {
+            this._regionUpperSpritesAbove.x = -this._tilemap.origin.x;
+            this._regionUpperSpritesAbove.y = -this._tilemap.origin.y;
+            if (this._regionNeedsSortAbove) {
+                this._regionUpperSpritesAbove.sortChildren();
+                this._regionNeedsSortAbove = false;
             }
         }
+
+
+        if (this._regionUpperSpritesBelow) {
+            this._regionUpperSpritesBelow.x = -this._tilemap.origin.x;
+            this._regionUpperSpritesBelow.y = -this._tilemap.origin.y;
+            if (this._regionNeedsSortBelow) {
+                this._regionUpperSpritesBelow.sortChildren();
+                this._regionNeedsSortBelow = false;
+            }
+        }
+
+
 
         if (this._regionLowerSprites) {
             this._regionLowerSprites.x = -this._tilemap.origin.x;
@@ -857,6 +991,8 @@
             const scene = SceneManager._scene;
             if (scene && scene._spriteset) {
                 scene._spriteset._regionNeedsRefresh = true;
+                scene._spriteset._tilesToReparent = true; // new flag
+
             }
         }
     });
