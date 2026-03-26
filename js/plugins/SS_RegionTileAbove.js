@@ -715,6 +715,7 @@
                 this._regionUpperSpritesBelow.removeChild(c);
                 this._regionUpperSpritesAbove.addChild(c);
             }
+            this._tilesToReparent =false
         }
 
         this._regionNeedsSortAbove = true;
