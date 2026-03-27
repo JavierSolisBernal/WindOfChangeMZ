@@ -1,6 +1,6 @@
 /*:
 * @target MZ
-* @plugindesc Region tiles rendered above characters (optimized + autotiles + smart caching)
+* @plugindesc Region tiles rendered above characters
 * @author Squall_seawave 
  
 * @param Rules
@@ -91,6 +91,7 @@
         2: {
             alpha: 0.65,
             level: 1,
+            backgroundTile:46,
             pass_levels: [
                 { level: 0, directions: ["L", "R"], visible: true },
                 { level: 1, directions: ["U", "D"] }
@@ -98,11 +99,7 @@
         }
     };
 
-    const regionTileMap = {
-        255: 46,
-        2: 46,
-
-    };
+  
 
     const tileMap = {
         "10,12": { setX: 6, setY: 11 }
@@ -250,7 +247,7 @@
             return tileId;
         }
 
-        const tileIndex = regionTileMap[regionId] || 0;
+        const tileIndex = REGION_CONFIG[regionId]?.backgroundTile || 0  
         return tileIndex + 1536;
     }
 
@@ -261,6 +258,7 @@
     const _createTilemap = Spriteset_Map.prototype.createTilemap;
     Spriteset_Map.prototype.createTilemap = function () {
         _createTilemap.call(this);
+        this._regionUsesCharacterLayer = true; // now safe to use _characterSprites
         this.createRegionLowerLayer();
         this.createRegionLayer();
     };
@@ -425,7 +423,8 @@
                 const region = $gameMap.regionId(mapX, mapY);
 
                 // Only render allowed regions
-                if (regionTileMap[region] === undefined) continue;
+                  
+                if (REGION_CONFIG[region]?.backgroundTile === undefined) continue;
 
                 const key = `${mapX},${mapY}`;
                 newMap[key] = true;
@@ -549,86 +548,7 @@
     // ==============================
     // SMART RENDERING
     // ==============================
-    Spriteset_Map.prototype.updateRegionUpperSpritesbackup = function () {
-        if (!this._regionUpperSpritesAbove || !this._regionUpperSpritesBelow) return;
-
-
-        const tw = $gameMap.tileWidth();
-        const th = $gameMap.tileHeight();
-
-        const startX = Math.floor(this._tilemap.origin.x / tw);
-        const startY = Math.floor(this._tilemap.origin.y / th);
-
-        // CACHE CHECK
-        if (startX === this._lastRegionStartX &&
-            startY === this._lastRegionStartY &&
-            !this._regionNeedsRefresh) {
-            return;
-        }
-
-
-        this._lastRegionStartX = startX;
-        this._lastRegionStartY = startY;
-
-        const screenTileW = Math.ceil(Graphics.width / tw) + 2;
-        const screenTileH = Math.ceil(Graphics.height / th) + 2;
-
-        const newMap = {};
-
-        for (let y = 0; y < screenTileH; y++) {
-            for (let x = 0; x < screenTileW; x++) {
-
-                const mapX = startX + x;
-                const mapY = startY + y;
-
-                if (!$gameMap.isValid(mapX, mapY)) continue;
-
-                const region = $gameMap.regionId(mapX, mapY);
-                if (REGION_CONFIG[region] === undefined) continue;
-
-                const key = `${mapX},${mapY}`;
-                newMap[key] = true;
-
-                if (this._regionSpriteMap[key]) continue;
-
-                const container = this._buildRegionContainer(mapX, mapY);
-
-                container.region = region;
-
-
-                // PERFECT SORT (feet position)
-                container.z = container.y + th;
-
-                console.log(key + ":" + $gameSystem.Playerlevel)
-                const parentcontainer = $gameSystem.Playerlevel < 1 ? this._regionUpperSpritesAbove : this._regionUpperSpritesBelow
-
-                parentcontainer.addChild(container);
-
-
-                this._regionNeedsSortAbove = true;
-                this._regionNeedsSortBelow = true;
-                this._regionSpriteMap[key] = container;
-            }
-        }
-
-        // CLEANUP
-        for (const key in this._regionSpriteMap) {
-            if (!newMap[key]) {
-                const c = this._regionSpriteMap[key];
-                 if (c && c.parent === this._regionUpperSpritesAbove) {
-                    this._regionUpperSpritesAbove.removeChild(c);
-                }
-                if (c && c.parent === this._regionUpperSpritesBelow) {
-                    this._regionUpperSpritesBelow.removeChild(c);
-                }
-                if (c) this._regionSpritePool.push(c);
-                delete this._regionSpriteMap[key];
-            }
-        }
-        this._regionNeedsRefresh = false
-
-    };
-
+    
 
     Spriteset_Map.prototype.updateRegionUpperSprites = function () {
         if (!this._regionUpperSpritesAbove || !this._regionUpperSpritesBelow) return;
@@ -681,9 +601,9 @@
                 const parentContainer = $gameSystem.Playerlevel < (container._level ?? 1)
                     ? this._regionUpperSpritesAbove
                     : this._regionUpperSpritesBelow;
-
+                
                 parentContainer.addChild(container);
-
+                
                 container.z = container.y + th;
 
                 this._regionSpriteMap[key] = container;
@@ -734,6 +654,8 @@
 
         this._regionNeedsRefresh = false;
     };
+  
+
 
     // ==============================
     // AUTOTILES
@@ -881,9 +803,10 @@
 
 
 
-        if (this._lastRulesCheckFrame !== Graphics.frameCount) {
+        
+        if (this._cachedRulesResult === undefined || (Graphics.frameCount % 10 === 0)) {
             this._cachedRulesResult = conditionFn();
-            this._lastRulesCheckFrame = Graphics.frameCount;
+           
         }
         const rulesPassed = this._cachedRulesResult;
 
