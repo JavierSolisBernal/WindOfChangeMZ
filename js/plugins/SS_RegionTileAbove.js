@@ -428,12 +428,13 @@
         // 2. Always update existing sprite positions first to prevent "lagging" behind the map
         for (const key in this._regionUpperMap) {
             const c = this._regionUpperMap[key];
-            const parts = key.split(',');
+            /* const parts = key.split(',');
             const mapX = parseInt(parts[0]);
             const mapY = parseInt(parts[1]);
+            */
 
-            c.x = (mapX - displayX) * tw;
-            c.y = (mapY - displayY) * th;
+            c.x = (c.mapX - displayX) * tw;
+            c.y = (c.mapY - displayY) * th;
         }
 
         // 3. Cache check: If the integer tile hasn't changed, we don't need to create/remove sprites
@@ -470,6 +471,9 @@
                 container.alpha = 1
                 container.x = (mapX - displayX) * tw;
                 container.y = (mapY - displayY) * th;
+                container.mapX = mapX
+                container.mapY = mapY
+
                 container.z = 3.1;
                 container.region = region;
                 this._regionUpperlayer.addChild(container);
@@ -764,9 +768,9 @@
 
 
     Spriteset_Map.prototype.updateRegionAlpha = function () {
-        if (this._lastRulesCheckFrame !== Graphics.frameCount) {
+
+        if (this._cachedRulesResult === undefined || (Graphics.frameCount % 10 === 0)) {
             this._cachedRulesResult = conditionFn();
-            this._lastRulesCheckFrame = Graphics.frameCount;
         }
         const rulesPassed = this._cachedRulesResult;
 
@@ -785,24 +789,27 @@
         this._lastRulesState = rulesPassed;
         this._lastRegionVisibility = visible;
 
-        //  UPPER LAYERS
+
+        const startX = Math.floor($gameMap.displayX());
+        const startY = Math.floor($gameMap.displayY());
+        const screenTileW = Math.ceil(Graphics.width / $gameMap.tileWidth()) + 2;
+        const screenTileH = Math.ceil(Graphics.height / $gameMap.tileHeight()) + 2;
+
+
+        const regionAlpha = {};
+        for (const regionId in REGION_CONFIG) {
+            const config = REGION_CONFIG[regionId];
+            if (!config) regionAlpha[regionId] = 1;
+            else if (config.force) regionAlpha[regionId] = config.alpha;
+            else if (rulesPassed) regionAlpha[regionId] = 0.5;
+            else if (visible) regionAlpha[regionId] = config.alpha;
+            else regionAlpha[regionId] = 1;
+        }
+        // Apply precomputed alpha
         for (const key in this._regionUpperMap) {
             const c = this._regionUpperMap[key];
-            let alpha
-            const config = REGION_CONFIG[c.region];
-            if (!config) {
-                alpha = 1;
-            } else if (config.force) {
-                alpha = config.alpha;
-            } else if (rulesPassed) {
-                alpha = 0.5;
-            } else if (visible) {
-                alpha = config.alpha;
-            } else {
-                alpha = 1;
-            }
-
-            c.alpha = alpha;
+            const alpha = regionAlpha[c.region] ?? 1;
+            if (c.alpha !== alpha) c.alpha = alpha;
         }
     };
 
