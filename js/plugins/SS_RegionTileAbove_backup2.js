@@ -91,7 +91,7 @@
         2: {
             alpha: 0.65,
             level: 1,
-            backgroundTile:46,
+            backgroundTile: 46,
             pass_levels: [
                 { level: 0, directions: ["L", "R"], visible: true },
                 { level: 1, directions: ["U", "D"] }
@@ -99,7 +99,7 @@
         }
     };
 
-  
+
 
     const tileMap = {
         "10,12": { setX: 6, setY: 11 }
@@ -242,12 +242,12 @@
     function getTileIdAt(regionId, x, y) {
         const mapping = tileMap[`${x},${y}`];
 
-        if (mapping) {
-            const tileId = $gameMap.tileId(mapping.setX, mapping.setY, 0);
-            return tileId;
+        if (mapping && typeof mapping.setX === 'number' && typeof mapping.setY === 'number') {
+            // Return the tile ID from the map's layer 0
+            return $gameMap.tileId(mapping.setX, mapping.setY, 0);
         }
 
-        const tileIndex = REGION_CONFIG[regionId]?.backgroundTile || 0  
+        const tileIndex = REGION_CONFIG[regionId]?.backgroundTile || 0
         return tileIndex + 1536;
     }
 
@@ -259,7 +259,7 @@
     Spriteset_Map.prototype.createTilemap = function () {
         _createTilemap.call(this);
         this._regionUsesCharacterLayer = true; // now safe to use _characterSprites
-        this.createRegionLowerLayer();
+        //this.createRegionLowerLayer();
         this.createRegionLayer();
     };
 
@@ -423,7 +423,7 @@
                 const region = $gameMap.regionId(mapX, mapY);
 
                 // Only render allowed regions
-                  
+
                 if (REGION_CONFIG[region]?.backgroundTile === undefined) continue;
 
                 const key = `${mapX},${mapY}`;
@@ -548,7 +548,7 @@
     // ==============================
     // SMART RENDERING
     // ==============================
-    
+
 
     Spriteset_Map.prototype.updateRegionUpperSprites = function () {
         if (!this._regionUpperSpritesAbove || !this._regionUpperSpritesBelow) return;
@@ -595,15 +595,15 @@
 
                 // Set default _level (can be customized per tile if needed)
                 container._level = REGION_CONFIG[region]?.level ?? 1;
-                
+
 
                 // Assign initial parent based on Playerlevel
                 const parentContainer = $gameSystem.Playerlevel < (container._level ?? 1)
                     ? this._regionUpperSpritesAbove
                     : this._regionUpperSpritesBelow;
-                
+
                 parentContainer.addChild(container);
-                
+
                 container.z = container.y + th;
 
                 this._regionSpriteMap[key] = container;
@@ -635,7 +635,7 @@
                 this._regionUpperSpritesBelow.removeChild(c);
                 this._regionUpperSpritesAbove.addChild(c);
             }
-            this._tilesToReparent =false
+            this._tilesToReparent = false
         }
 
         this._regionNeedsSortAbove = true;
@@ -654,7 +654,7 @@
 
         this._regionNeedsRefresh = false;
     };
-  
+
 
 
     // ==============================
@@ -803,10 +803,10 @@
 
 
 
-        
+
         if (this._cachedRulesResult === undefined || (Graphics.frameCount % 10 === 0)) {
             this._cachedRulesResult = conditionFn();
-           
+
         }
         const rulesPassed = this._cachedRulesResult;
 
