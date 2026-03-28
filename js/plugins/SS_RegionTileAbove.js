@@ -88,6 +88,7 @@
     const REGION_CONFIG = {
         254: { alpha: 1, force: true },
         255: { alpha: 0.65 },
+        4: { alpha: 0, backgroundTile: 0 },
         2: {
             alpha: 0.65,
             level: 1,
@@ -98,10 +99,7 @@
             ]
         }
     };
-    const regionTileMap = {
-        255: 46,
-        2: 46,
-    };
+  
 
     const tileMap = {
         "10,12": { setX: 6, setY: 11 }
@@ -808,6 +806,8 @@
         // Apply precomputed alpha
         for (const key in this._regionUpperMap) {
             const c = this._regionUpperMap[key];
+            if (c.mapX < startX - 1 || c.mapX > startX + screenTileW ||
+                c.mapY < startY - 1 || c.mapY > startY + screenTileH) continue;
             const alpha = regionAlpha[c.region] ?? 1;
             if (c.alpha !== alpha) c.alpha = alpha;
         }
