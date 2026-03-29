@@ -84,7 +84,7 @@
             console.warn("Invalid rule:", r);
             return null;
         }
-    }).filter(r => r !== null);;
+    }).filter(r => r !== null);
     const REGION_CONFIG = {
         254: { alpha: 1, force: true },
         255: { alpha: 0.65 },
@@ -99,7 +99,7 @@
             ]
         }
     };
-  
+
 
     const tileMap = {
         "10,12": { setX: 6, setY: 11 }
@@ -119,7 +119,7 @@
 
         // Split path: "states.length" → ["states", "length"]
         const parts = path.split(".");
- 
+
         let current = obj;
 
         for (let key of parts) {
@@ -423,17 +423,18 @@
         const startX = Math.floor(displayX);
         const startY = Math.floor(displayY);
 
-        // 2. Always update existing sprite positions first to prevent "lagging" behind the map
+
+
+        //Always update existing sprite positions first to prevent "lagging" behind the map
         for (const key in this._regionUpperMap) {
             const c = this._regionUpperMap[key];
-            /* const parts = key.split(',');
-            const mapX = parseInt(parts[0]);
-            const mapY = parseInt(parts[1]);
-            */
+
+
 
             c.x = (c.mapX - displayX) * tw;
             c.y = (c.mapY - displayY) * th;
         }
+
 
         // 3. Cache check: If the integer tile hasn't changed, we don't need to create/remove sprites
         if (startX === this._lastUpperStartX && startY === this._lastUpperStartY) {
@@ -449,6 +450,8 @@
 
         const newMap = {};
 
+        const rulesPassed = this._cachedRulesResult ?? conditionFn();
+        const visible = $gameSystem._under ?? true;
         for (let y = -1; y < screenTileH; y++) { // Start at -1 to handle smooth scrolling
             for (let x = -1; x < screenTileW; x++) {
                 const mapX = startX + x;
@@ -457,6 +460,7 @@
                 if (!$gameMap.isValid(mapX, mapY)) continue;
 
                 const region = $gameMap.regionId(mapX, mapY);
+
                 if (REGION_CONFIG[region] === undefined) continue;
 
                 const key = `${mapX},${mapY}`;
@@ -466,7 +470,20 @@
 
                 let container = this._buildRegionContainer(mapX, mapY)
                 container.name = "TileUpper";
-                container.alpha = 1
+
+
+
+                let alpha = 1;
+                const config = REGION_CONFIG[region];
+                if (config) {
+                    if (config.force) alpha = config.alpha;
+                    else if (rulesPassed) alpha = 0.5;
+                    else if (visible) alpha = config.alpha;
+                }
+
+                container.alpha = alpha;
+
+
                 container.x = (mapX - displayX) * tw;
                 container.y = (mapY - displayY) * th;
                 container.mapX = mapX
@@ -756,8 +773,8 @@
 
             if (!config) zmove = 3.1
             else {
-                const configlevel = config.level??1
-                 zmove = $gameSystem.Playerlevel < configlevel ? 3.1 : 2.9
+                const configlevel = config.level ?? 1
+                zmove = $gameSystem.Playerlevel < configlevel ? 3.1 : 2.9
             }
             c.z = zmove
         }
@@ -848,5 +865,49 @@
             }
         }
     });
+
+    const _playerUpdate = Game_Player.prototype.update;
+    Game_Player.prototype.update = function (sceneActive) {
+        _playerUpdate.call(this, sceneActive);
+        this.updateRegionLevelLogic();
+    };
+
+    Game_Player.prototype.updateRegionLevelLogic = function () {
+        const region = this.regionId();
+        if (![3].includes(region)) return
+        if (region !== this._lastRegion) {
+            this._prevRegion = this._lastRegion;
+            this._lastRegion = region;
+            this._handleRegionTransition();
+        }
+    };
+
+    Game_Player.prototype._handleRegionTransition = function () {
+        const prev = this._prevRegion;
+        const curr = this._lastRegion;
+        console.log(prev)
+        return
+        if (curr === 0) {
+            this._regionChain = null;
+            return;
+        }
+
+        // First hit
+        if (this._regionChain == null) {
+            this._regionChain = curr;
+            return;
+        }
+
+        // Second hit
+        if (this._regionChain === curr) {
+            // SUCCESS → change level
+            $gameSystem.Playerlevel += 1; // or -1 depending on region
+
+            this._regionChain = null; // reset
+        } else {
+            // FAIL → reset chain
+            this._regionChain = curr;
+        }
+    };
 
 })();
