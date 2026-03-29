@@ -119,7 +119,7 @@
 
         // Split path: "states.length" → ["states", "length"]
         const parts = path.split(".");
-
+ 
         let current = obj;
 
         for (let key of parts) {
@@ -756,8 +756,8 @@
 
             if (!config) zmove = 3.1
             else {
-                console.log(config.level)
-                zmove = $gameSystem.Playerlevel < config.level ? 3.1 : 2.9
+                const configlevel = config.level??1
+                 zmove = $gameSystem.Playerlevel < configlevel ? 3.1 : 2.9
             }
             c.z = zmove
         }
