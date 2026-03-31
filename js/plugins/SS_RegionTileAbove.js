@@ -869,44 +869,49 @@
     const _playerUpdate = Game_Player.prototype.update;
     Game_Player.prototype.update = function (sceneActive) {
         _playerUpdate.call(this, sceneActive);
-        this.updateRegionLevelLogic();
+        this.updateRegionLogic();
     };
 
-    Game_Player.prototype.updateRegionLevelLogic = function () {
+    Game_Player.prototype.updateRegionLogic = function () {
+        const x = this.x;
+        const y = this.y;
         const region = this.regionId();
-        if (![3].includes(region)) return
-        if (region !== this._lastRegion) {
-            this._prevRegion = this._lastRegion;
-            this._lastRegion = region;
-            this._handleRegionTransition();
+
+        this._regionCount = this._regionCount || {};
+
+        // Only trigger when player moves
+        if (x !== this._lastX || y !== this._lastY) {
+            this._lastX = x;
+            this._lastY = y;
+            this._handleRegion(region, x, y);
         }
     };
 
-    Game_Player.prototype._handleRegionTransition = function () {
-        const prev = this._prevRegion;
-        const curr = this._lastRegion;
-        console.log(prev)
-        return
-        if (curr === 0) {
-            this._regionChain = null;
+    Game_Player.prototype._handleRegion = function (region, x, y) {
+        if (region !== 3) {
+            this._lastRegionTile = null;
             return;
         }
 
-        // First hit
-        if (this._regionChain == null) {
-            this._regionChain = curr;
+        // First tile
+        if (!this._lastRegionTile) {
+            this._lastRegionTile = { x, y };
             return;
         }
 
-        // Second hit
-        if (this._regionChain === curr) {
-            // SUCCESS → change level
-            $gameSystem.Playerlevel += 1; // or -1 depending on region
+        // Must be different tile
+        if (this._lastRegionTile.x !== x || this._lastRegionTile.y !== y) {
+            // Init counter
+            this._regionCount[region] = this._regionCount[region] || 0;
 
-            this._regionChain = null; // reset
-        } else {
-            // FAIL → reset chain
-            this._regionChain = curr;
+            this._regionCount[region]++;
+
+            // ✅ Zigzag: +1, -1, +1, -1...
+            const delta = this._regionCount[region] % 2 === 1 ? 1 : -1;
+            $gameSystem.Playerlevel += delta;
+
+
+            this._lastRegionTile = { x, y };
         }
     };
 
