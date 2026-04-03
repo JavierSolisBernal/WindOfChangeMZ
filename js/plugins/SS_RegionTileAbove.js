@@ -360,17 +360,21 @@
 
 
     Spriteset_Map.prototype.createRegionUpperLayer = function () {
-        this._regionUpperlayer = this._tilemap;
+        //this._regionUpperlayer = this._tilemap;
+        this._regionUpperlayer = new PIXI.Container();
         this._regionUpperlayer.sortableChildren = true;
-        //this._tilemap.addChild(this._regionLowerSprites);
-        //  LOWER-specific pools & maps
+        // Add it ABOVE tilemap but BELOW characters (we’ll adjust z next)
+        this._tilemap.addChild(this._regionUpperlayer);
+        this._regionUpperlayer.z = 3.1;
+        this._regionUpperNeedsSort = false;
+        //  UPPER-specific pools & maps
         this._regionUpperPool = [];
         this._regionUpperMap = {};
 
-        //  LOWER cache
+        //  UPPER cache
         this._lastUpperStartX = -1;
         this._lastUpperStartY = -1;
-        //  LOWER animation (if you need it later)
+        //  UPPER animation (if you need it later)
         this._upperAnimFrame = 0;
     };
 
@@ -393,7 +397,7 @@
                 this._drawAutotile(container, tileId);
             } else {
                 const frame = getTileFrameMZ(tileId, tw, th);
-                const bitmap = this._regionBitmaps[frame.index];
+                const bitmap = this._regionBitmaps?.[frame.index];
                 if (!bitmap) continue;
 
                 const sprite = new Sprite(bitmap);
@@ -425,7 +429,6 @@
         const startY = Math.floor(displayY);
 
 
-
         //Always update existing sprite positions first to prevent "lagging" behind the map
         for (const key in this._regionUpperMap) {
             const c = this._regionUpperMap[key];
@@ -438,7 +441,11 @@
 
 
         // 3. Cache check: If the integer tile hasn't changed, we don't need to create/remove sprites
-        if (startX === this._lastUpperStartX && startY === this._lastUpperStartY) {
+        if (
+            startX === this._lastUpperStartX &&
+            startY === this._lastUpperStartY &&
+            Object.keys(this._regionUpperMap).length > 0
+        ) {
             return;
         }
 
@@ -451,7 +458,9 @@
 
         const newMap = {};
 
-        const rulesPassed = this._cachedRulesResult ?? conditionFn();
+        const rulesPassed = this._cachedRulesResult !== undefined
+            ? this._cachedRulesResult
+            : conditionFn();
         const visible = $gameSystem._under ?? true;
         for (let y = -1; y < screenTileH; y++) { // Start at -1 to handle smooth scrolling
             for (let x = -1; x < screenTileW; x++) {
@@ -482,7 +491,7 @@
                     else if (rulesPassed) alpha = 0.5;
                     else if (visible) alpha = config.alpha;
                 }
-                offset = mapY * 0.000001;
+                const offset = mapY * 0.000001;
                 container.alpha = alpha;
 
 
@@ -495,6 +504,7 @@
                 container.region = region;
                 this._regionUpperlayer.addChild(container);
                 this._regionUpperMap[key] = container;
+                this._regionUpperNeedsSort = true;
             }
         }
 
@@ -504,11 +514,15 @@
                 const c = this._regionUpperMap[key];
                 this._regionUpperlayer.removeChild(c);
                 this._regionUpperPool.push(c);
+                this._regionUpperNeedsSort = true;
                 delete this._regionUpperMap[key];
             }
         }
 
-        this._regionUpperlayer.sortChildren();
+        if (this._regionUpperNeedsSort) {
+            this._regionUpperlayer.sortChildren();
+            this._regionUpperNeedsSort = false;
+        }
     };
 
 
@@ -571,7 +585,7 @@
                     this._drawAutotile(container, tileId);
                 } else {
                     const frame = getTileFrameMZ(tileId, tw, th);
-                    const bitmap = this._regionBitmaps[frame.index];
+                    const bitmap = this._regionBitmaps?.[frame.index];
                     if (!bitmap) continue;
                     const sprite = new Sprite(bitmap);
 
@@ -690,7 +704,7 @@
                     const sx = (bx * 2 + qTable[i][0]) * w1;
                     const sy = (by * 2 + qTable[i][1]) * h1;
 
-                    const bitmap = this._regionBitmaps[0];
+                    const bitmap = this._regionBitmaps?.[0];
                     if (!bitmap) continue;
 
                     const s = new Sprite(bitmap);
@@ -731,7 +745,7 @@
         const table = autotileTable[shape];
         if (!table) return;
 
-        const bitmap = this._regionBitmaps[tilesetIndex];
+        const bitmap = this._regionBitmaps?.[tilesetIndex];
         if (!bitmap) return;
         for (let i = 0; i < 4; i++) {
             const sx = (bx * 2 + table[i][0]) * w1;
@@ -772,23 +786,7 @@
         return this._characterSprites.find(s => s._character === character);
     };
 
-    Spriteset_Map.prototype.updateZregion = function () {
 
-        return
-        for (const key in this._regionUpperMap) {
-            const c = this._regionUpperMap[key];
-            const config = REGION_CONFIG[c.region];
-            let zmove
-
-            if (!config) zmove = 3.1
-            else {
-                const configlevel = config.level ?? 1
-                zmove = $gameSystem.Playerlevel < configlevel ? 3.1 : 2.9
-            }
-            c.z = zmove
-        }
-        this._regionUpperlayer.sortChildren();
-    }
 
 
     Spriteset_Map.prototype.updateRegionAlpha = function () {
@@ -804,6 +802,8 @@
         if (this._regionLowerSprites) {
             this._regionLowerSprites.visible = !!rulesPassed;
         }
+
+
 
         if (rulesPassed === this._lastRulesState &&
             visible === this._lastRegionVisibility) {
@@ -945,32 +945,7 @@
         this.updateRegionZ();
     };
 
-    Sprite_Character.prototype.updateRegionZ = function () {
-        const character = this._character;
-        if (!character) return;
 
-        const x = character.x;
-        const y = character.y;
-
-        const regionId = $gameMap.regionId(x, y);
-        const regionLevel = getRegionLevel(regionId);
-
-        const charLevel = character.regionLevel();
-        const ind = charLevel * .1
-
-        const baseZ = this.z; // engine-calculated base
-
-        let offset = y * 0.000001;
-        this.z = 3 + ind + offset;
-        return
-        if (charLevel < regionLevel) {
-            // BELOW tile
-            this.z = 2 + ind + offset;
-        } else {
-            // ABOVE tile
-            this.z = 3 + ind + offset;
-        }
-    };
 
 
     Sprite_Character.prototype.updateRegionZ = function () {
@@ -988,14 +963,14 @@
 
         // Target Z
         let targetZ;
-      
+
         if (charLevel < regionLevel) {
             targetZ = 2.9 + offset; // below
         } else {
             targetZ = 3.2 + offset; // above
         }
-            
-        
+
+
         // Initialize smooth value
         if (this._zSmooth === undefined) {
             this._zSmooth = targetZ;
