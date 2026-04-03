@@ -1,6 +1,6 @@
 /*:
 * @target MZ
-* @plugindesc Region tiles rendered above characters
+* @plugindesc Region tiles rendered above characters (optimized + autotiles + smart caching)
 * @author Squall_seawave 
  
 * @param Rules
@@ -84,10 +84,11 @@
             console.warn("Invalid rule:", r);
             return null;
         }
-    }).filter(r => r !== null);;
+    }).filter(r => r !== null);
     const REGION_CONFIG = {
         254: { alpha: 1, force: true },
         255: { alpha: 0.65 },
+        4: { alpha: 0, backgroundTile: 0 },
         2: {
             alpha: 0.65,
             level: 1,
@@ -98,7 +99,6 @@
             ]
         }
     };
-
 
 
     const tileMap = {
@@ -242,9 +242,9 @@
     function getTileIdAt(regionId, x, y) {
         const mapping = tileMap[`${x},${y}`];
 
-        if (mapping && typeof mapping.setX === 'number' && typeof mapping.setY === 'number') {
-            // Return the tile ID from the map's layer 0
-            return $gameMap.tileId(mapping.setX, mapping.setY, 0);
+        if (mapping) {
+            const tileId = $gameMap.tileId(mapping.setX, mapping.setY, 0);
+            return tileId;
         }
 
         const tileIndex = REGION_CONFIG[regionId]?.backgroundTile || 0
@@ -258,9 +258,14 @@
     const _createTilemap = Spriteset_Map.prototype.createTilemap;
     Spriteset_Map.prototype.createTilemap = function () {
         _createTilemap.call(this);
-        this._regionUsesCharacterLayer = true; // now safe to use _characterSprites
-        //this.createRegionLowerLayer();
-        this.createRegionLayer();
+        this._regionBitmaps = $gameMap.tileset().tilesetNames.map(n =>
+            ImageManager.loadTileset(n || "")
+        );
+        this.createRegionLowerLayer();
+
+        this.createRegionUpperLayer();
+
+        // this.createRegionLayer();
     };
 
 
@@ -317,14 +322,7 @@
 
     const _destroy = Spriteset_Map.prototype.destroy;
     Spriteset_Map.prototype.destroy = function (options) {
-        if (this._regionUpperSpritesAbove) {
-            this._regionUpperSpritesAbove.removeChildren();
-            this._regionUpperSpritesAbove.destroy({ children: true });
-        }
-        if (this._regionUpperSpritesBelow) {
-            this._regionUpperSpritesBelow.removeChildren();
-            this._regionUpperSpritesBelow.destroy({ children: true });
-        }
+
         if (this._regionLowerSprites) {
             this._regionLowerSprites.destroy({ children: true });
         }
@@ -333,37 +331,6 @@
     };
 
 
-
-    Spriteset_Map.prototype.createRegionLayer = function () {
-        this._regionUpperSpritesAbove = new PIXI.Container();
-        this._regionUpperSpritesAbove.sortableChildren = true;
-        this._regionUpperSpritesAbove.z = 3.1; // above charcters
-        this._tilemap.addChild(this._regionUpperSpritesAbove);
-
-        this._regionUpperSpritesBelow = new PIXI.Container();
-        this._regionUpperSpritesBelow.sortableChildren = true;
-        this._regionUpperSpritesBelow.z = 2.1; // below charcters
-        this._tilemap.addChild(this._regionUpperSpritesBelow);
-
-
-        this._regionNeedsSortAbove = false;
-        this._regionNeedsSortBelow = false;
-        this._regionSpritePool = [];
-        this._regionSpriteMap = {};
-
-        this._regionBitmaps = $gameMap.tileset().tilesetNames.map(n =>
-            ImageManager.loadTileset(n || "")
-        );
-
-        this._lastRegionStartX = -1;
-        this._lastRegionStartY = -1;
-        this._lastRegionVisibility = null;
-
-        this._regionAnimFrame = 0;
-        this._regionNeedsRefresh = false
-
-
-    };
 
 
     Spriteset_Map.prototype.createRegionLowerLayer = function () {
@@ -377,9 +344,7 @@
         this._regionLowerMap = {};
 
         // (optional) keep if you use tile bitmaps for lower
-        this._regionLowerBitmaps = $gameMap.tileset().tilesetNames.map(n =>
-            ImageManager.loadTileset(n || "")
-        );
+
 
         //  LOWER cache
         this._lastLowerStartX = -1;
@@ -387,6 +352,165 @@
         //  LOWER animation (if you need it later)
         this._lowerAnimFrame = 0;
     };
+
+
+
+
+    Spriteset_Map.prototype.createRegionUpperLayer = function () {
+        this._regionUpperlayer = this._tilemap;
+        this._regionUpperlayer.sortableChildren = true;
+        //this._tilemap.addChild(this._regionLowerSprites);
+        //  LOWER-specific pools & maps
+        this._regionUpperPool = [];
+        this._regionUpperMap = {};
+
+        //  LOWER cache
+        this._lastUpperStartX = -1;
+        this._lastUpperStartY = -1;
+        //  LOWER animation (if you need it later)
+        this._upperAnimFrame = 0;
+    };
+
+
+    Spriteset_Map.prototype._buildRegionContainer = function (mapX, mapY) {
+        let container = this._regionUpperPool.pop();
+        if (!container) container = new PIXI.Container();
+
+        container.removeChildren();
+        container._a1 = null;
+
+        const tw = $gameMap.tileWidth();
+        const th = $gameMap.tileHeight();
+
+        for (let z = 0; z < 4; z++) {
+            const tileId = $gameMap.tileId(mapX, mapY, z);
+            if (!tileId) continue;
+
+            if (Tilemap.isAutotile(tileId)) {
+                this._drawAutotile(container, tileId);
+            } else {
+                const frame = getTileFrameMZ(tileId, tw, th);
+                const bitmap = this._regionBitmaps[frame.index];
+                if (!bitmap) continue;
+
+                const sprite = new Sprite(bitmap);
+                sprite.setFrame(frame.sx, frame.sy, tw, th);
+                sprite.x = 0;
+                sprite.y = 0;
+
+                container.addChild(sprite);
+            }
+        }
+
+        //container.x = mapX * tw;
+        //container.y = mapY * th;
+
+        return container;
+    };
+
+
+    Spriteset_Map.prototype.updateRegionUpperLayerSprites = function () {
+        if (!this._regionUpperlayer) return;
+
+        const tw = $gameMap.tileWidth();
+        const th = $gameMap.tileHeight();
+
+        // 1. Use displayX/Y for EVERYTHING to ensure sync
+        const displayX = $gameMap.displayX();
+        const displayY = $gameMap.displayY();
+
+        // Calculate the integer start tile
+        const startX = Math.floor(displayX);
+        const startY = Math.floor(displayY);
+
+
+
+        //Always update existing sprite positions first to prevent "lagging" behind the map
+        for (const key in this._regionUpperMap) {
+            const c = this._regionUpperMap[key];
+
+
+
+            c.x = (c.mapX - displayX) * tw;
+            c.y = (c.mapY - displayY) * th;
+        }
+
+
+        // 3. Cache check: If the integer tile hasn't changed, we don't need to create/remove sprites
+        if (startX === this._lastUpperStartX && startY === this._lastUpperStartY) {
+            return;
+        }
+
+        this._lastUpperStartX = startX;
+        this._lastUpperStartY = startY;
+
+        // Buffer of 2 tiles to prevent pop-in at edges
+        const screenTileW = Math.ceil(Graphics.width / tw) + 2;
+        const screenTileH = Math.ceil(Graphics.height / th) + 2;
+
+        const newMap = {};
+
+        const rulesPassed = this._cachedRulesResult ?? conditionFn();
+        const visible = $gameSystem._under ?? true;
+        for (let y = -1; y < screenTileH; y++) { // Start at -1 to handle smooth scrolling
+            for (let x = -1; x < screenTileW; x++) {
+                const mapX = startX + x;
+                const mapY = startY + y;
+
+                if (!$gameMap.isValid(mapX, mapY)) continue;
+
+                const region = $gameMap.regionId(mapX, mapY);
+
+                if (REGION_CONFIG[region] === undefined) continue;
+
+                const key = `${mapX},${mapY}`;
+                newMap[key] = true;
+
+                if (this._regionUpperMap[key]) continue;
+
+                let container = this._buildRegionContainer(mapX, mapY)
+                container.name = "TileUpper";
+
+
+
+                let alpha = 1;
+                const config = REGION_CONFIG[region];
+                if (config) {
+                    if (config.force) alpha = config.alpha;
+                    else if (rulesPassed) alpha = 0.5;
+                    else if (visible) alpha = config.alpha;
+                }
+
+                container.alpha = alpha;
+
+
+                container.x = (mapX - displayX) * tw;
+                container.y = (mapY - displayY) * th;
+                container.mapX = mapX
+                container.mapY = mapY
+
+                container.z = 3.1;
+                container.region = region;
+                this._regionUpperlayer.addChild(container);
+                this._regionUpperMap[key] = container;
+            }
+        }
+
+        // 4. Cleanup: Remove tiles that are no longer in the 'newMap'
+        for (const key in this._regionUpperMap) {
+            if (!newMap[key]) {
+                const c = this._regionUpperMap[key];
+                this._regionUpperlayer.removeChild(c);
+                this._regionUpperPool.push(c);
+                delete this._regionUpperMap[key];
+            }
+        }
+
+        this._regionUpperlayer.sortChildren();
+    };
+
+
+
 
 
     Spriteset_Map.prototype.updateRegionLowerSprites = function () {
@@ -423,7 +547,6 @@
                 const region = $gameMap.regionId(mapX, mapY);
 
                 // Only render allowed regions
-
                 if (REGION_CONFIG[region]?.backgroundTile === undefined) continue;
 
                 const key = `${mapX},${mapY}`;
@@ -446,7 +569,7 @@
                     this._drawAutotile(container, tileId);
                 } else {
                     const frame = getTileFrameMZ(tileId, tw, th);
-                    const bitmap = this._regionLowerBitmaps[frame.index];
+                    const bitmap = this._regionBitmaps[frame.index];
                     if (!bitmap) continue;
                     const sprite = new Sprite(bitmap);
 
@@ -504,156 +627,6 @@
         }
     };
 
-
-
-
-
-    Spriteset_Map.prototype._buildRegionContainer = function (mapX, mapY) {
-        let container = this._regionSpritePool.pop();
-        if (!container) container = new PIXI.Container();
-
-        container.removeChildren();
-        container._a1 = null;
-
-        const tw = $gameMap.tileWidth();
-        const th = $gameMap.tileHeight();
-
-        for (let z = 0; z < 4; z++) {
-            const tileId = $gameMap.tileId(mapX, mapY, z);
-            if (!tileId) continue;
-
-            if (Tilemap.isAutotile(tileId)) {
-                this._drawAutotile(container, tileId);
-            } else {
-                const frame = getTileFrameMZ(tileId, tw, th);
-                const bitmap = this._regionBitmaps[frame.index];
-                if (!bitmap) continue;
-
-                const sprite = new Sprite(bitmap);
-                sprite.setFrame(frame.sx, frame.sy, tw, th);
-                sprite.x = 0;
-                sprite.y = 0;
-
-                container.addChild(sprite);
-            }
-        }
-
-        container.x = mapX * tw;
-        container.y = mapY * th;
-
-        return container;
-    };
-
-
-    // ==============================
-    // SMART RENDERING
-    // ==============================
-
-
-    Spriteset_Map.prototype.updateRegionUpperSprites = function () {
-        if (!this._regionUpperSpritesAbove || !this._regionUpperSpritesBelow) return;
-
-        const tw = $gameMap.tileWidth();
-        const th = $gameMap.tileHeight();
-
-        const startX = Math.floor(this._tilemap.origin.x / tw);
-        const startY = Math.floor(this._tilemap.origin.y / th);
-
-        // CACHE CHECK
-        if (startX === this._lastRegionStartX &&
-            startY === this._lastRegionStartY &&
-            !this._regionNeedsRefresh) {
-            return;
-        }
-
-        this._lastRegionStartX = startX;
-        this._lastRegionStartY = startY;
-
-        const screenTileW = Math.ceil(Graphics.width / tw) + 2;
-        const screenTileH = Math.ceil(Graphics.height / th) + 2;
-
-        const newMap = {};
-
-        // --- BUILD / ADD NEW REGION TILES ---
-        for (let y = 0; y < screenTileH; y++) {
-            for (let x = 0; x < screenTileW; x++) {
-                const mapX = startX + x;
-                const mapY = startY + y;
-
-                if (!$gameMap.isValid(mapX, mapY)) continue;
-
-                const region = $gameMap.regionId(mapX, mapY);
-                if (REGION_CONFIG[region] === undefined) continue;
-
-                const key = `${mapX},${mapY}`;
-                newMap[key] = true;
-
-                if (this._regionSpriteMap[key]) continue;
-
-                const container = this._buildRegionContainer(mapX, mapY);
-                container.region = region;
-
-                // Set default _level (can be customized per tile if needed)
-                container._level = REGION_CONFIG[region]?.level ?? 1;
-
-
-                // Assign initial parent based on Playerlevel
-                const parentContainer = $gameSystem.Playerlevel < (container._level ?? 1)
-                    ? this._regionUpperSpritesAbove
-                    : this._regionUpperSpritesBelow;
-
-                parentContainer.addChild(container);
-
-                container.z = container.y + th;
-
-                this._regionSpriteMap[key] = container;
-                this._regionNeedsSortAbove = true;
-                this._regionNeedsSortBelow = true;
-            }
-        }
-
-        if (this._tilesToReparent) {
-            const toAbove = [];
-            const toBelow = [];
-
-            for (const c of this._regionUpperSpritesAbove.children) {
-                const shouldBeAbove = ($gameSystem.Playerlevel < (c._level ?? 1));
-                if (!shouldBeAbove) toBelow.push(c);
-            }
-
-            for (const c of this._regionUpperSpritesBelow.children) {
-                const shouldBeAbove = ($gameSystem.Playerlevel < (c._level ?? 1));
-                if (shouldBeAbove) toAbove.push(c);
-            }
-
-            for (const c of toBelow) {
-                this._regionUpperSpritesAbove.removeChild(c);
-                this._regionUpperSpritesBelow.addChild(c);
-            }
-
-            for (const c of toAbove) {
-                this._regionUpperSpritesBelow.removeChild(c);
-                this._regionUpperSpritesAbove.addChild(c);
-            }
-            this._tilesToReparent = false
-        }
-
-        this._regionNeedsSortAbove = true;
-        this._regionNeedsSortBelow = true;
-
-        // --- CLEANUP OLD TILES ---
-        for (const key in this._regionSpriteMap) {
-            if (!newMap[key]) {
-                const c = this._regionSpriteMap[key];
-                if (c && c.parent === this._regionUpperSpritesAbove) this._regionUpperSpritesAbove.removeChild(c);
-                if (c && c.parent === this._regionUpperSpritesBelow) this._regionUpperSpritesBelow.removeChild(c);
-                if (c) this._regionSpritePool.push(c);
-                delete this._regionSpriteMap[key];
-            }
-        }
-
-        this._regionNeedsRefresh = false;
-    };
 
 
 
@@ -777,17 +750,12 @@
     // AUTOTILE ANIMATION
     // ==============================
     Spriteset_Map.prototype.updateRegionAutotiles = function () {
-        this._regionAnimFrame++;
-
-
-        const frame = Math.floor(this._regionAnimFrame / 30);
-
-        for (const key in this._regionSpriteMap) {
-            const c = this._regionSpriteMap[key];
+        this._upperAnimFrame++;
+        const frame = Math.floor(this._upperAnimFrame / 30);
+        for (const key in this._regionUpperMap) {
+            const c = this._regionUpperMap[key];
             if (!c._a1) continue;
-
             const index = frame % c._a1.length;
-
             c._a1.forEach((f, i) => {
                 const visible = (i === index);
                 f.forEach(s => s.visible = visible);
@@ -797,16 +765,27 @@
 
     };
 
+    Spriteset_Map.prototype.updateZregion = function () {
+        for (const key in this._regionUpperMap) {
+            const c = this._regionUpperMap[key];
+            const config = REGION_CONFIG[c.region];
+            let zmove
+
+            if (!config) zmove = 3.1
+            else {
+                const configlevel = config.level ?? 1
+                zmove = $gameSystem.Playerlevel < configlevel ? 3.1 : 2.9
+            }
+            c.z = zmove
+        }
+        this._regionUpperlayer.sortChildren();
+    }
 
 
     Spriteset_Map.prototype.updateRegionAlpha = function () {
 
-
-
-
         if (this._cachedRulesResult === undefined || (Graphics.frameCount % 10 === 0)) {
             this._cachedRulesResult = conditionFn();
-
         }
         const rulesPassed = this._cachedRulesResult;
 
@@ -825,35 +804,31 @@
         this._lastRulesState = rulesPassed;
         this._lastRegionVisibility = visible;
 
-        //  UPPER LAYERS
-        for (const key in this._regionSpriteMap) {
-            const c = this._regionSpriteMap[key];
 
-            let alpha
-            const config = REGION_CONFIG[c.region];
+        const startX = Math.floor($gameMap.displayX());
+        const startY = Math.floor($gameMap.displayY());
+        const screenTileW = Math.ceil(Graphics.width / $gameMap.tileWidth()) + 2;
+        const screenTileH = Math.ceil(Graphics.height / $gameMap.tileHeight()) + 2;
 
-            if (!config) {
-                alpha = 1;
-            } else if (config.force) {
-                alpha = config.alpha;
-            } else if (rulesPassed) {
-                alpha = 0.5;
-            } else if (visible) {
-                alpha = config.alpha;
-            } else {
-                alpha = 1;
-            }
 
-            c.alpha = alpha;
+        const regionAlpha = {};
+        for (const regionId in REGION_CONFIG) {
+            const config = REGION_CONFIG[regionId];
+            if (!config) regionAlpha[regionId] = 1;
+            else if (config.force) regionAlpha[regionId] = config.alpha;
+            else if (rulesPassed) regionAlpha[regionId] = 0.5;
+            else if (visible) regionAlpha[regionId] = config.alpha;
+            else regionAlpha[regionId] = 1;
         }
-
-
-
-
-
+        // Apply precomputed alpha
+        for (const key in this._regionUpperMap) {
+            const c = this._regionUpperMap[key];
+            if (c.mapX < startX - 1 || c.mapX > startX + screenTileW ||
+                c.mapY < startY - 1 || c.mapY > startY + screenTileH) continue;
+            const alpha = regionAlpha[c.region] ?? 1;
+            if (c.alpha !== alpha) c.alpha = alpha;
+        }
     };
-
-
 
     // ==============================
     // UPDATE LOOP
@@ -861,36 +836,11 @@
     const _updateTilemap = Spriteset_Map.prototype.updateTilemap;
     Spriteset_Map.prototype.updateTilemap = function () {
         _updateTilemap.call(this);
-
-
         this.updateRegionLowerSprites();
         this.updateRegionLowerAutotiles();
-
-
-        this.updateRegionUpperSprites();
-        this.updateRegionAutotiles();
-        this.updateRegionAlpha();
-
-        if (this._regionUpperSpritesAbove) {
-            this._regionUpperSpritesAbove.x = -this._tilemap.origin.x;
-            this._regionUpperSpritesAbove.y = -this._tilemap.origin.y;
-            if (this._regionNeedsSortAbove) {
-                this._regionUpperSpritesAbove.sortChildren();
-                this._regionNeedsSortAbove = false;
-            }
-        }
-
-
-        if (this._regionUpperSpritesBelow) {
-            this._regionUpperSpritesBelow.x = -this._tilemap.origin.x;
-            this._regionUpperSpritesBelow.y = -this._tilemap.origin.y;
-            if (this._regionNeedsSortBelow) {
-                this._regionUpperSpritesBelow.sortChildren();
-                this._regionNeedsSortBelow = false;
-            }
-        }
-
-
+        this.updateRegionUpperLayerSprites()
+        this.updateRegionAutotiles()
+        this.updateRegionAlpha()
 
         if (this._regionLowerSprites) {
             this._regionLowerSprites.x = -this._tilemap.origin.x;
@@ -900,11 +850,7 @@
                 this._regionLowerNeedsSort = false;
             }
         }
-
-
-
     };
-
 
     Object.defineProperty(Game_System.prototype, "Playerlevel", {
         get: function () {
@@ -914,11 +860,59 @@
             this._playerLevel = value;
             const scene = SceneManager._scene;
             if (scene && scene._spriteset) {
-                scene._spriteset._regionNeedsRefresh = true;
-                scene._spriteset._tilesToReparent = true; // new flag
+                scene._spriteset.updateZregion() // new flag
 
             }
         }
     });
+
+    const _playerUpdate = Game_Player.prototype.update;
+    Game_Player.prototype.update = function (sceneActive) {
+        _playerUpdate.call(this, sceneActive);
+        this.updateRegionLogic();
+    };
+
+    Game_Player.prototype.updateRegionLogic = function () {
+        const x = this.x;
+        const y = this.y;
+        const region = this.regionId();
+
+        this._regionCount = this._regionCount || {};
+
+        // Only trigger when player moves
+        if (x !== this._lastX || y !== this._lastY) {
+            this._lastX = x;
+            this._lastY = y;
+            this._handleRegion(region, x, y);
+        }
+    };
+
+    Game_Player.prototype._handleRegion = function (region, x, y) {
+        if (region !== 3) {
+            this._lastRegionTile = null;
+            return;
+        }
+
+        // First tile
+        if (!this._lastRegionTile) {
+            this._lastRegionTile = { x, y };
+            return;
+        }
+
+        // Must be different tile
+        if (this._lastRegionTile.x !== x || this._lastRegionTile.y !== y) {
+            // Init counter
+            this._regionCount[region] = this._regionCount[region] || 0;
+
+            this._regionCount[region]++;
+
+            // ✅ Zigzag: +1, -1, +1, -1...
+            const delta = this._regionCount[region] % 2 === 1 ? 1 : -1;
+            $gameSystem.Playerlevel += delta;
+
+
+            this._lastRegionTile = { x, y };
+        }
+    };
 
 })();

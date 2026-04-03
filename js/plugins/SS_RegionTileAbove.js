@@ -106,7 +106,10 @@
     };
 
 
-
+    function getRegionLevel(regionId) {
+        const config = REGION_CONFIG[regionId];
+        return config?.level ?? 1;
+    }
 
     function safeAccess(obj, path) {
         if (!obj || typeof path !== "string") return undefined;
@@ -402,8 +405,6 @@
             }
         }
 
-        container.x = mapX * tw;
-        container.y = mapY * th;
 
         return container;
     };
@@ -475,12 +476,13 @@
 
                 let alpha = 1;
                 const config = REGION_CONFIG[region];
+                const level = getRegionLevel(region);
                 if (config) {
                     if (config.force) alpha = config.alpha;
                     else if (rulesPassed) alpha = 0.5;
                     else if (visible) alpha = config.alpha;
                 }
-
+                offset = mapY * 0.000001;
                 container.alpha = alpha;
 
 
@@ -489,7 +491,7 @@
                 container.mapX = mapX
                 container.mapY = mapY
 
-                container.z = 3.1;
+                container.z = 3 + (level * 0.05) + offset;
                 container.region = region;
                 this._regionUpperlayer.addChild(container);
                 this._regionUpperMap[key] = container;
@@ -765,7 +767,14 @@
 
     };
 
+    Spriteset_Map.prototype.getSpriteForCharacter = function (character) {
+        // _characterSprites holds all active Sprite_Character instances
+        return this._characterSprites.find(s => s._character === character);
+    };
+
     Spriteset_Map.prototype.updateZregion = function () {
+
+        return
         for (const key in this._regionUpperMap) {
             const c = this._regionUpperMap[key];
             const config = REGION_CONFIG[c.region];
@@ -830,6 +839,15 @@
         }
     };
 
+    Spriteset_Map.prototype.updateRegionLevel = function () {
+        for (const key in this._regionUpperMap) {
+            const c = this._regionUpperMap[key];
+            const level = getRegionLevel(c.region);
+            const offset = c.mapY * 0.000001;
+            c.z = 3 + (level * 0.1) + offset;
+        }
+    }
+
     // ==============================
     // UPDATE LOOP
     // ==============================
@@ -852,19 +870,7 @@
         }
     };
 
-    Object.defineProperty(Game_System.prototype, "Playerlevel", {
-        get: function () {
-            return this._playerLevel || 0;
-        },
-        set: function (value) {
-            this._playerLevel = value;
-            const scene = SceneManager._scene;
-            if (scene && scene._spriteset) {
-                scene._spriteset.updateZregion() // new flag
 
-            }
-        }
-    });
 
     const _playerUpdate = Game_Player.prototype.update;
     Game_Player.prototype.update = function (sceneActive) {
@@ -872,22 +878,39 @@
         this.updateRegionLogic();
     };
 
-    Game_Player.prototype.updateRegionLogic = function () {
+    const _followerUpdate = Game_Follower.prototype.update;
+    Game_Follower.prototype.update = function () {
+        _followerUpdate.call(this);
+        this.updateRegionLogic();
+    };
+
+
+
+    Game_CharacterBase.prototype.regionLevel = function () {
+        return this._regionLevel || 0;
+    };
+
+    Game_CharacterBase.prototype.setRegionLevel = function (value) {
+        this._regionLevel = value;
+    };
+
+
+    Game_CharacterBase.prototype.updateRegionLogic = function () {
         const x = this.x;
         const y = this.y;
         const region = this.regionId();
 
         this._regionCount = this._regionCount || {};
 
-        // Only trigger when player moves
+        // Only trigger when character moves
         if (x !== this._lastX || y !== this._lastY) {
             this._lastX = x;
             this._lastY = y;
-            this._handleRegion(region, x, y);
+            this._handleRegionZigZag(region, x, y);
         }
     };
 
-    Game_Player.prototype._handleRegion = function (region, x, y) {
+    Game_CharacterBase.prototype._handleRegionZigZag = function (region, x, y) {
         if (region !== 3) {
             this._lastRegionTile = null;
             return;
@@ -901,18 +924,88 @@
 
         // Must be different tile
         if (this._lastRegionTile.x !== x || this._lastRegionTile.y !== y) {
-            // Init counter
             this._regionCount[region] = this._regionCount[region] || 0;
-
             this._regionCount[region]++;
 
-            // ✅ Zigzag: +1, -1, +1, -1...
+            // ✅ Zigzag per character
             const delta = this._regionCount[region] % 2 === 1 ? 1 : -1;
-            $gameSystem.Playerlevel += delta;
 
+            this.setRegionLevel(this.regionLevel() + delta);
 
             this._lastRegionTile = { x, y };
         }
     };
+
+    //$gameMap.event(5).setRegionLevel(2);
+
+    const _Sprite_Character_updatePosition = Sprite_Character.prototype.updatePosition;
+    Sprite_Character.prototype.updatePosition = function () {
+        _Sprite_Character_updatePosition.call(this);
+
+        this.updateRegionZ();
+    };
+
+    Sprite_Character.prototype.updateRegionZ = function () {
+        const character = this._character;
+        if (!character) return;
+
+        const x = character.x;
+        const y = character.y;
+
+        const regionId = $gameMap.regionId(x, y);
+        const regionLevel = getRegionLevel(regionId);
+
+        const charLevel = character.regionLevel();
+        const ind = charLevel * .1
+
+        const baseZ = this.z; // engine-calculated base
+
+        let offset = y * 0.000001;
+        this.z = 3 + ind + offset;
+        return
+        if (charLevel < regionLevel) {
+            // BELOW tile
+            this.z = 2 + ind + offset;
+        } else {
+            // ABOVE tile
+            this.z = 3 + ind + offset;
+        }
+    };
+
+
+    Sprite_Character.prototype.updateRegionZ = function () {
+        const character = this._character;
+        if (!character) return;
+
+        const x = character.x;
+        const y = character.y;
+
+        const regionId = $gameMap.regionId(x, y);
+        const regionLevel = getRegionLevel(regionId);
+        const charLevel = character.regionLevel();
+        const ind = charLevel * .1
+        const offset = y * 0.000001;
+
+        // Target Z
+        let targetZ;
+      
+        if (charLevel < regionLevel) {
+            targetZ = 2.9 + offset; // below
+        } else {
+            targetZ = 3.2 + offset; // above
+        }
+            
+        
+        // Initialize smooth value
+        if (this._zSmooth === undefined) {
+            this._zSmooth = targetZ;
+        }
+
+        // Smooth interpolation (tweak 0.25 for speed)
+        this._zSmooth += (targetZ - this._zSmooth) * 0.25;
+
+        this.z = this._zSmooth;
+    };
+
 
 })();
