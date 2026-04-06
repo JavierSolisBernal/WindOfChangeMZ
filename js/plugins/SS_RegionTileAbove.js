@@ -100,6 +100,10 @@
         }
     };
 
+    const REGION_LEVEL_GATE = {
+        3: { level: 1, dir_lock: [4, 6], prev_regions: [2] },
+
+    }
 
     const tileMap = {
         "10,12": { setX: 6, setY: 11 }
@@ -911,7 +915,9 @@
     };
 
     Game_CharacterBase.prototype._handleRegionZigZag = function (region, x, y) {
-        if (region !== 3) {
+
+        const keys = Object.keys(REGION_LEVEL_GATE).map(k => parseInt(k, 10));
+        if (!keys.includes(region)) {
             this._lastRegionTile = null;
             return;
         }
@@ -927,7 +933,7 @@
             this._regionCount[region] = this._regionCount[region] || 0;
             this._regionCount[region]++;
 
-            // ✅ Zigzag per character
+            // change per region
             const delta = this._regionCount[region] % 2 === 1 ? 1 : -1;
 
             this.setRegionLevel(this.regionLevel() + delta);
@@ -982,5 +988,111 @@
         this.z = this._zSmooth;
     };
 
+
+
+    // Helper function to safely set region IDs
+    Game_Map.prototype.setRegionId = function (x, y, regionId = 0) {
+
+        const width = $dataMap.width;
+        const height = $dataMap.height;
+        const key = (5 * height + y) * width + x;
+        $dataMap.data[key] = regionId
+    };
+
+
+    Game_Map.prototype.checkRegionMap = function () {
+        
+        const width = this.width();
+        const height = this.height();
+        const temp_array=[];
+        const keys = Object.keys(REGION_LEVEL_GATE).map(k => parseInt(k, 10));
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const region=this.regionId(x,y);
+                if(!keys.includes(region)) continue
+                const locations = [
+                    [x, y - 1], // top
+                    [x, y + 1], // down
+                    [x - 1, y], // left
+                    [x + 1, y]  // right
+                ];
+               
+                locations.forEach(element => {
+                    const x=element[0]
+                    const y=element[1]
+                    if(this.regionId(x,y)==0)
+                    temp_array.push({x:x, y:y, region:region})    
+                });
+
+            }
+        }
+        temp_array.forEach(e => {
+            this.setRegionId(e.x, e.y, e.region)
+        });
+        
+    }
+    // Ensure code runs after map data is fully initialized
+    ss_onMapLoaded = Scene_Map.prototype.onMapLoaded
+    Scene_Map.prototype.onMapLoaded = function () {
+        $gameMap.checkRegionMap()
+        ss_onMapLoaded.call(this)
+    };
+
+    class RegionOverlay extends Sprite {
+        constructor() {
+            super();
+            this.tileSize = $gameMap.tileWidth();
+            const mapWidth = $gameMap.width() * this.tileSize;
+            const mapHeight = $gameMap.height() * this.tileSize;
+            this.bitmap = new Bitmap(mapWidth, mapHeight);
+            this.refresh();
+        }
+
+        refresh() {
+            this.bitmap.clear();
+            const map = $gameMap;
+            const width = map.width();
+            const height = map.height();
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const regionId = map.regionId(x, y);
+                    if (regionId > 0) {
+                        const color = `rgba(${regionId * 20 % 256}, 100, 200, 0.5)`;
+                        this.bitmap.fillRect(
+                            x * this.tileSize,
+                            y * this.tileSize,
+                            this.tileSize,
+                            this.tileSize,
+                            color
+                        );
+                        this.bitmap.drawText(
+                            regionId,
+                            x * this.tileSize,
+                            y * this.tileSize,
+                            this.tileSize,
+                            this.tileSize,
+                            "center"
+                        );
+                    }
+                }
+            }
+        }
+
+        update() {
+            super.update();
+            // Keep overlay aligned with the map camera
+            this.x = -$gameMap.displayX() * this.tileSize;
+            this.y = -$gameMap.displayY() * this.tileSize;
+        }
+    }
+
+    // Add overlay to the scene
+    const _Scene_Map_createAllWindows = Scene_Map.prototype.createAllWindows;
+    Scene_Map.prototype.createAllWindows = function () {
+        _Scene_Map_createAllWindows.call(this);
+        this._regionOverlay = new RegionOverlay();
+        this.addChild(this._regionOverlay);
+    };
 
 })();
