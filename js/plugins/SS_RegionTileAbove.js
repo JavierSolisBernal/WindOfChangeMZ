@@ -93,13 +93,12 @@
             alpha: 0.65,
             level: 1,
             backgroundTile: 46,
-            pass_levels: [
-                { level: 0, directions: ["L", "R"], visible: true },
-                { level: 1, directions: ["U", "D"] }
-            ]
+            below: [4,6], //horizontal
+            above: [2, 8]  //vertical  
+
         }
     };
-
+    const DEBUG = false;
     const REGION_LEVEL_GATE = {
         3: { level: 1, dir_lock: [4, 6], prev_regions: [2] },
 
@@ -262,9 +261,9 @@
     // ==============================
     // INIT
     // ==============================
-    const _createTilemap = Spriteset_Map.prototype.createTilemap;
+    const SS_createTilemap = Spriteset_Map.prototype.createTilemap;
     Spriteset_Map.prototype.createTilemap = function () {
-        _createTilemap.call(this);
+        SS_createTilemap.call(this);
         this._regionBitmaps = $gameMap.tileset().tilesetNames.map(n =>
             ImageManager.loadTileset(n || "")
         );
@@ -327,14 +326,14 @@
 
     }
 
-    const _destroy = Spriteset_Map.prototype.destroy;
+    const SS_destroy = Spriteset_Map.prototype.destroy;
     Spriteset_Map.prototype.destroy = function (options) {
 
         if (this._regionLowerSprites) {
             this._regionLowerSprites.destroy({ children: true });
         }
 
-        _destroy.call(this, options);
+        SS_destroy.call(this, options);
     };
 
 
@@ -786,8 +785,7 @@
     };
 
     Spriteset_Map.prototype.getSpriteForCharacter = function (character) {
-        // _characterSprites holds all active Sprite_Character instances
-        return this._characterSprites.find(s => s._character === character);
+         return this._characterSprites.find(s => s._character === character);
     };
 
 
@@ -855,9 +853,9 @@
     // ==============================
     // UPDATE LOOP
     // ==============================
-    const _updateTilemap = Spriteset_Map.prototype.updateTilemap;
+    const SS_updateTilemap = Spriteset_Map.prototype.updateTilemap;
     Spriteset_Map.prototype.updateTilemap = function () {
-        _updateTilemap.call(this);
+        SS_updateTilemap.call(this);
         this.updateRegionLowerSprites();
         this.updateRegionLowerAutotiles();
         this.updateRegionUpperLayerSprites()
@@ -876,15 +874,15 @@
 
 
 
-    const _playerUpdate = Game_Player.prototype.update;
+    const SS_playerUpdate = Game_Player.prototype.update;
     Game_Player.prototype.update = function (sceneActive) {
-        _playerUpdate.call(this, sceneActive);
+        SS_playerUpdate.call(this, sceneActive);
         this.updateRegionLogic();
     };
 
-    const _followerUpdate = Game_Follower.prototype.update;
+    const SS_followerUpdate = Game_Follower.prototype.update;
     Game_Follower.prototype.update = function () {
-        _followerUpdate.call(this);
+        SS_followerUpdate.call(this);
         this.updateRegionLogic();
     };
 
@@ -944,9 +942,9 @@
 
     //$gameMap.event(5).setRegionLevel(2);
 
-    const _Sprite_Character_updatePosition = Sprite_Character.prototype.updatePosition;
+    const SS_Sprite_Character_updatePosition = Sprite_Character.prototype.updatePosition;
     Sprite_Character.prototype.updatePosition = function () {
-        _Sprite_Character_updatePosition.call(this);
+        SS_Sprite_Character_updatePosition.call(this);
 
         this.updateRegionZ();
     };
@@ -1001,27 +999,27 @@
 
 
     Game_Map.prototype.checkRegionMap = function () {
-        
+
         const width = this.width();
         const height = this.height();
-        const temp_array=[];
+        const temp_array = [];
         const keys = Object.keys(REGION_LEVEL_GATE).map(k => parseInt(k, 10));
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
-                const region=this.regionId(x,y);
-                if(!keys.includes(region)) continue
+                const region = this.regionId(x, y);
+                if (!keys.includes(region)) continue
                 const locations = [
                     [x, y - 1], // top
                     [x, y + 1], // down
                     [x - 1, y], // left
                     [x + 1, y]  // right
                 ];
-               
+
                 locations.forEach(element => {
-                    const x=element[0]
-                    const y=element[1]
-                    if(this.regionId(x,y)==0)
-                    temp_array.push({x:x, y:y, region:region})    
+                    const x = element[0]
+                    const y = element[1]
+                    if (this.regionId(x, y) == 0)
+                        temp_array.push({ x: x, y: y, region: region })
                 });
 
             }
@@ -1029,14 +1027,94 @@
         temp_array.forEach(e => {
             this.setRegionId(e.x, e.y, e.region)
         });
-        
+
     }
     // Ensure code runs after map data is fully initialized
-    ss_onMapLoaded = Scene_Map.prototype.onMapLoaded
+    const ss_onMapLoaded = Scene_Map.prototype.onMapLoaded
     Scene_Map.prototype.onMapLoaded = function () {
         $gameMap.checkRegionMap()
         ss_onMapLoaded.call(this)
     };
+
+
+
+    function isUnderRegion(character) {
+        const x = character.x;
+        const y = character.y;
+
+        const regionId = $gameMap.regionId(x, y);
+        const regionLevel = getRegionLevel(regionId);
+        const charLevel = character.regionLevel();
+
+        return charLevel < regionLevel;
+    }
+
+    // Ladder
+    const SS_isOnLadder = Game_CharacterBase.prototype.isOnLadder;
+    Game_CharacterBase.prototype.isOnLadder = function () {
+        if (isUnderRegion(this)) return false;
+        return SS_isOnLadder.call(this);
+    };
+
+    // Damage Floor
+    const SS_isOnDamageFloor = Game_CharacterBase.prototype.isOnDamageFloor;
+    Game_CharacterBase.prototype.isOnDamageFloor = function () {
+        if (isUnderRegion(this)) return false;
+        return SS_isOnDamageFloor.call(this);
+    };
+
+    // Bush
+    const SS_isOnBush = Game_CharacterBase.prototype.isOnBush;
+    Game_CharacterBase.prototype.isOnBush = function () {
+        if (isUnderRegion(this)) return false;
+        return SS_isOnBush.call(this);
+    };
+
+    function getRelativePosition(character, x, y) {
+        const regionId = $gameMap.regionId(x, y);
+        const regionLevel = getRegionLevel(regionId); // your function
+        const charLevel = character.regionLevel();    // your function
+
+        if (charLevel > regionLevel) return "above";
+        if (charLevel < regionLevel) return "below";
+        return "same";
+    }
+
+    const SS_isMapPassable = Game_CharacterBase.prototype.isMapPassable
+    
+    Game_CharacterBase.prototype.isMapPassable = function (x, y, d) {
+        const x2 = $gameMap.roundXWithDirection(x, d);
+        const y2 = $gameMap.roundYWithDirection(y, d);
+        const d2 = this.reverseDir(d);
+
+        const regionId = $gameMap.regionId(x, y);
+        const nextRegionId = $gameMap.regionId(x2, y2);
+
+        //let move inside the same region freely
+        if(regionId>0 && regionId==nextRegionId) return true
+        //Always allow entering a configured region
+        if (!REGION_CONFIG[regionId] && REGION_CONFIG[nextRegionId]) {
+            const rel = getRelativePosition(this, x, y); // above/below/same
+            const rules = REGION_CONFIG[nextRegionId]?.[rel];
+            if(rules && !rules.includes(d2)) return false;
+            return true;
+        }
+
+        //Leaving a configured region: check region rules
+        if (REGION_CONFIG[regionId] && regionId !== nextRegionId) {
+            const rel = getRelativePosition(this, x2, y2); // above/below/same
+            const rules = REGION_CONFIG[regionId]?.[rel];
+            if (rules) {
+                //Check if the move direction is allowed
+                if (!rules.includes(d)) return false;
+                //Check if the next tile is actually passable (not a wall or obstacle)
+                return SS_isMapPassable.call(this, x2, y2, d);
+            }
+        }
+        //Default: use normal passability
+        return SS_isMapPassable.call(this, x, y, d);
+    };
+
 
     class RegionOverlay extends Sprite {
         constructor() {
@@ -1088,11 +1166,13 @@
     }
 
     // Add overlay to the scene
-    const _Scene_Map_createAllWindows = Scene_Map.prototype.createAllWindows;
+    const SS_Scene_Map_createAllWindows = Scene_Map.prototype.createAllWindows;
     Scene_Map.prototype.createAllWindows = function () {
-        _Scene_Map_createAllWindows.call(this);
+        SS_Scene_Map_createAllWindows.call(this);
+        if (!DEBUG) return
         this._regionOverlay = new RegionOverlay();
         this.addChild(this._regionOverlay);
     };
+
 
 })();
