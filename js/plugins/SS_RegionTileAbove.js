@@ -1089,13 +1089,17 @@
 
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
-
+        
         //let move inside the same region freely
-        if(regionId>0 && regionId==nextRegionId) return true
+        if(regionId>0 && regionId==nextRegionId) return $gameMap.isValid(x2, y2);
         //Always allow entering a configured region
+
+       
+
         if (!REGION_CONFIG[regionId] && REGION_CONFIG[nextRegionId]) {
             const rel = getRelativePosition(this, x, y); // above/below/same
             const rules = REGION_CONFIG[nextRegionId]?.[rel];
+            if(REGION_CONFIG?.[nextRegionId]?.force) return SS_isMapPassable.call(this, x, y, d);
             if(rules && !rules.includes(d2)) return false;
             return true;
         }
@@ -1104,10 +1108,11 @@
         if (REGION_CONFIG[regionId] && regionId !== nextRegionId) {
             const rel = getRelativePosition(this, x2, y2); // above/below/same
             const rules = REGION_CONFIG[regionId]?.[rel];
+         
             if (rules) {
                 //Check if the move direction is allowed
                 if (!rules.includes(d)) return false;
-                //Check if the next tile is actually passable (not a wall or obstacle)
+                //Check if the next tile is actually passable (not a wall or obstacle)  
                 return SS_isMapPassable.call(this, x2, y2, d);
             }
         }
