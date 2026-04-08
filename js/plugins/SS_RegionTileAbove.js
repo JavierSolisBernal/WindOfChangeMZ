@@ -975,13 +975,13 @@
         let offset = y * 0.000001;
 
 
-        if(character instanceof Game_Event){
-             offset = y * 0.000002;
+        if (character instanceof Game_Event) {
+            offset = y * 0.000002;
         }
 
         // Target Z
         let targetZ;
-        
+
 
         if (charLevel < regionLevel) {
             targetZ = 2.9 + offset; // below
@@ -1171,57 +1171,41 @@
         }
     };
 
-    /*
-    SS_canPass = Game_CharacterBase.prototype.canPass
-    Game_CharacterBase.prototype.canPass = function (x, y, d) {
-        const x2 = $gameMap.roundXWithDirection(x, d);
-        const y2 = $gameMap.roundYWithDirection(y, d);
-        let check = SS_canPass.call(this, x, y, d)
-        let mylevel = this.regionLevel()
-        if (!check) {
-            const events = $gameMap.eventsXyNt(x2, y2).filter(event => event.regionLevel() === mylevel);
-            const sameLevelBlocking = events.some(event =>
-                event.isNormalPriority()
-            );
-            if(!sameLevelBlocking && this.isMapPassable(x, y, d)) return true
-        }
-        return check
-    }
-        */
+    
 
 
     // Backup original method
-const SS_canPass = Game_CharacterBase.prototype.canPass;
+    const SS_canPass = Game_CharacterBase.prototype.canPass;
 
-Game_CharacterBase.prototype.canPass = function (x, y, d) {
-    const x2 = $gameMap.roundXWithDirection(x, d);
-    const y2 = $gameMap.roundYWithDirection(y, d);
+    Game_CharacterBase.prototype.canPass = function (x, y, d) {
+        const x2 = $gameMap.roundXWithDirection(x, d);
+        const y2 = $gameMap.roundYWithDirection(y, d);
 
 
-    if (!$gameMap.isValid(x2, y2)) {
-        return false;
-    }
+        if (!$gameMap.isValid(x2, y2)) {
+            return false;
+        }
 
-    // First, check the original collision rules (walls, terrain, default events)
-    let canPassOriginal = SS_canPass.call(this, x, y, d);
-    if (canPassOriginal) return true; // Tile is already passable
+        // First, check the original collision rules (walls, terrain, default events)
+        let canPassOriginal = SS_canPass.call(this, x, y, d);
+        if (canPassOriginal) return true; // Tile is already passable
 
-    const myLevel = this.regionLevel();
+        const myLevel = this.regionLevel();
 
-    // Get all events at the target tile
-    const eventsAtTile = $gameMap.eventsXyNt(x2, y2);
+        // Get all events at the target tile
+        const eventsAtTile = $gameMap.eventsXyNt(x2, y2);
 
-    // Check if any event at the same level is blocking
-    const sameLevelBlocking = eventsAtTile.some(event =>
-        event.isNormalPriority() && (event.regionLevel() === myLevel)
-    );
+        // Check if any event at the same level is blocking
+        const sameLevelBlocking = eventsAtTile.some(event =>
+            event.isNormalPriority() && (event.regionLevel() === myLevel)
+        );
 
-    // If no same-level blocking event exists and the map tile itself is passable, allow movement
-    if (!sameLevelBlocking && this.isMapPassable(x, y, d)) return true;
+        // If no same-level blocking event exists and the map tile itself is passable, allow movement
+        if (!sameLevelBlocking && this.isMapPassable(x, y, d)) return true;
 
-    // Otherwise, blocked
-    return canPassOriginal;
-};
+        // Otherwise, blocked
+        return canPassOriginal;
+    };
 
     const SS_isMapPassable = Game_CharacterBase.prototype.isMapPassable
 
@@ -1244,7 +1228,6 @@ Game_CharacterBase.prototype.canPass = function (x, y, d) {
             const rules = REGION_CONFIG[nextRegionId]?.[rel];
             if (REGION_CONFIG?.[nextRegionId]?.force) return SS_isMapPassable.call(this, x, y, d);
             if (rules && !rules.includes(d2)) return false;
-            if(this._carryId) return false
             return true;
         }
 
@@ -1323,7 +1306,38 @@ Game_CharacterBase.prototype.canPass = function (x, y, d) {
         this.addChild(this._regionOverlay);
     };
 
+    /*
+    SS_pickUpEvent=Game_CharacterBase.prototype.pickUpEvent
+    // Add or replace method on Game_CharacterBase
+    Game_CharacterBase.prototype.pickUpEvent = function (eventId) {
 
-     
+        const regionId = $gameMap.regionId($gamePlayer._x, $gamePlayer._y);
+        
+        if(!REGION_CONFIG[regionId]) return SS_pickUpEvent.call(this,eventId)
+    
+        const event = $gameMap.event(eventId);
+        if (!event) return;
+
+        // Move event one tile in player direction
+        const dir = $gamePlayer.direction();
+        switch (dir) {
+            case 2: event.moveStraight(2); break;
+            case 4: event.moveStraight(4); break;
+            case 6: event.moveStraight(6); break;
+            case 8: event.moveStraight(8); break;
+        }
+    };
+    */
+
+    
+    const SS_getThrowPosition=Game_CharacterBase.prototype.getThrowPosition
+
+    Game_CharacterBase.prototype.getThrowPosition=function(x,y){
+        //var point = new Point( x, y );
+        //regionId = $gameMap.regionId(point.x, point.y);
+        return SS_getThrowPosition.call(this,x,y)
+    }
+    
+
 
 })();
