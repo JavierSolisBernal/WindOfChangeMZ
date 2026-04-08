@@ -93,7 +93,7 @@
             alpha: 0.65,
             level: 1,
             backgroundTile: 46,
-            below: [4,6], //horizontal
+            below: [4, 6], //horizontal
             above: [2, 8]  //vertical  
 
         }
@@ -397,7 +397,7 @@
             if (!tileId) continue;
 
             if (Tilemap.isAutotile(tileId)) {
-                this._drawAutotile(container, tileId);
+                this.SS__drawAutotile(container, tileId);
             } else {
                 const frame = getTileFrameMZ(tileId, tw, th);
                 const bitmap = this._regionBitmaps?.[frame.index];
@@ -585,7 +585,7 @@
 
                 // Draw tile
                 if (Tilemap.isAutotile(tileId)) {
-                    this._drawAutotile(container, tileId);
+                    this.SS__drawAutotile(container, tileId);
                 } else {
                     const frame = getTileFrameMZ(tileId, tw, th);
                     const bitmap = this._regionBitmaps?.[frame.index];
@@ -652,7 +652,7 @@
     // ==============================
     // AUTOTILES
     // ==============================
-    Spriteset_Map.prototype._drawAutotile = function (container, tileId) {
+    Spriteset_Map.prototype.SS__drawAutotile = function (container, tileId) {
 
 
         const tw = $gameMap.tileWidth();
@@ -785,7 +785,7 @@
     };
 
     Spriteset_Map.prototype.getSpriteForCharacter = function (character) {
-         return this._characterSprites.find(s => s._character === character);
+        return this._characterSprites.find(s => s._character === character);
     };
 
 
@@ -887,6 +887,11 @@
     };
 
 
+    const SS_eventUpdate = Game_Event.prototype.update;
+    Game_Event.prototype.update = function () {
+        SS_eventUpdate.call(this);
+        this.updateRegionLogic();
+    };
 
     Game_CharacterBase.prototype.regionLevel = function () {
         return this._regionLevel || 0;
@@ -911,6 +916,10 @@
             this._handleRegionZigZag(region, x, y);
         }
     };
+
+
+
+
 
     Game_CharacterBase.prototype._handleRegionZigZag = function (region, x, y) {
 
@@ -1080,8 +1089,60 @@
         return "same";
     }
 
+
+    Game_Player.prototype.getSameLevelEvents = function (events) {
+        return events.filter(event => {
+            if (!event) return false;
+
+            const playerLevel = this.regionLevel();
+            const eventLevel = event.regionLevel();
+
+            return playerLevel === eventLevel;
+        });
+    };
+
+    const SS_startMapEvent = Game_Player.prototype.startMapEvent;
+    Game_Player.prototype.startMapEvent = function (x, y, triggers, normal) {
+        if ($gameMap.isEventRunning()) return;
+        const playerLevel = this.regionLevel();
+        // Save the original eventsXy
+        const originalEventsXy = $gameMap.eventsXy;
+        // Override eventsXy temporarily to filter by level
+        $gameMap.eventsXy = function (x, y) {
+            return originalEventsXy.call(this, x, y).filter(event =>
+                event.regionLevel() === playerLevel
+            );
+        };
+
+        // Call the original function — now it only sees events on the same level
+        SS_startMapEvent.call(this, x, y, triggers, normal);
+
+        // Restore the original function
+        $gameMap.eventsXy = originalEventsXy;
+    };
+
+
+    // Extend Game_Event to read meta for region level
+    const SS_Game_Event_initialize = Game_Event.prototype.initialize;
+    Game_Event.prototype.initialize = function (mapId, eventId) {
+        SS_Game_Event_initialize.call(this, mapId, eventId);
+
+        // Default level if not specified
+        this._regionLevel = 0;
+
+        // Check the note for <level:n>
+        const levelMeta = this.event().note.match(/<level:(\d+)>/i);
+        if (levelMeta) {
+            this._regionLevel = Number(levelMeta[1]);
+        }
+        
+    };
+
+
+   
+
     const SS_isMapPassable = Game_CharacterBase.prototype.isMapPassable
-    
+
     Game_CharacterBase.prototype.isMapPassable = function (x, y, d) {
         const x2 = $gameMap.roundXWithDirection(x, d);
         const y2 = $gameMap.roundYWithDirection(y, d);
@@ -1089,18 +1150,18 @@
 
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
-        
+
         //let move inside the same region freely
-        if(regionId>0 && regionId==nextRegionId) return $gameMap.isValid(x2, y2);
+        if (regionId > 0 && regionId == nextRegionId) return $gameMap.isValid(x2, y2);
         //Always allow entering a configured region
 
-       
+
 
         if (!REGION_CONFIG[regionId] && REGION_CONFIG[nextRegionId]) {
             const rel = getRelativePosition(this, x, y); // above/below/same
             const rules = REGION_CONFIG[nextRegionId]?.[rel];
-            if(REGION_CONFIG?.[nextRegionId]?.force) return SS_isMapPassable.call(this, x, y, d);
-            if(rules && !rules.includes(d2)) return false;
+            if (REGION_CONFIG?.[nextRegionId]?.force) return SS_isMapPassable.call(this, x, y, d);
+            if (rules && !rules.includes(d2)) return false;
             return true;
         }
 
@@ -1108,7 +1169,7 @@
         if (REGION_CONFIG[regionId] && regionId !== nextRegionId) {
             const rel = getRelativePosition(this, x2, y2); // above/below/same
             const rules = REGION_CONFIG[regionId]?.[rel];
-         
+
             if (rules) {
                 //Check if the move direction is allowed
                 if (!rules.includes(d)) return false;
