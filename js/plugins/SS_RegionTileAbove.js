@@ -1171,7 +1171,7 @@
         }
     };
 
-    
+
 
 
     // Backup original method
@@ -1329,15 +1329,14 @@
     };
     */
 
-    
-    const SS_getThrowPosition=Game_CharacterBase.prototype.getThrowPosition
 
-    Game_CharacterBase.prototype.getThrowPosition=function(x,y){
-        //var point = new Point( x, y );
-        //regionId = $gameMap.regionId(point.x, point.y);
-        return SS_getThrowPosition.call(this,x,y)
+    const SS_getThrowPosition = Game_CharacterBase.prototype.getThrowPosition
+
+    Game_CharacterBase.prototype.getThrowPosition = function (x, y) {
+        
+        return SS_getThrowPosition.call(this, x, y)
     }
-    
+
 
 
 })();
