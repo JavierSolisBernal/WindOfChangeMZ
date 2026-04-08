@@ -972,10 +972,16 @@
         const regionLevel = getRegionLevel(regionId);
         const charLevel = character.regionLevel();
         const ind = charLevel * .1
-        const offset = y * 0.000001;
+        let offset = y * 0.000001;
+
+
+        if(character instanceof Game_Event){
+             offset = y * 0.000002;
+        }
 
         // Target Z
         let targetZ;
+        
 
         if (charLevel < regionLevel) {
             targetZ = 2.9 + offset; // below
@@ -1130,16 +1136,92 @@
         // Default level if not specified
         this._regionLevel = 0;
 
+
+        this._invisible = this.event().meta.invisible ?? false
+
+
         // Check the note for <level:n>
         const levelMeta = this.event().note.match(/<level:(\d+)>/i);
         if (levelMeta) {
             this._regionLevel = Number(levelMeta[1]);
         }
-        
+
     };
 
 
-   
+    const SS_Sprite_Character_update = Sprite_Character.prototype.update;
+    Sprite_Character.prototype.update = function () {
+        SS_Sprite_Character_update.call(this);
+        this.updateRegionAlpha();
+    };
+
+    Sprite_Character.prototype.updateRegionAlpha = function () {
+        if (!this._character || !(this._character instanceof Game_Event)) return;
+
+        const event = this._character;
+
+
+        if (this._cachedRulesResult === undefined || (Graphics.frameCount % 10 === 0)) {
+            this._cachedRulesResult = conditionFn();
+        }
+
+        // Rule: if event level != player level, make alpha 0.75
+        if (event._invisible) {
+            this.alpha = this._cachedRulesResult ? 0.75 : 0
+        }
+    };
+
+    /*
+    SS_canPass = Game_CharacterBase.prototype.canPass
+    Game_CharacterBase.prototype.canPass = function (x, y, d) {
+        const x2 = $gameMap.roundXWithDirection(x, d);
+        const y2 = $gameMap.roundYWithDirection(y, d);
+        let check = SS_canPass.call(this, x, y, d)
+        let mylevel = this.regionLevel()
+        if (!check) {
+            const events = $gameMap.eventsXyNt(x2, y2).filter(event => event.regionLevel() === mylevel);
+            const sameLevelBlocking = events.some(event =>
+                event.isNormalPriority()
+            );
+            if(!sameLevelBlocking && this.isMapPassable(x, y, d)) return true
+        }
+        return check
+    }
+        */
+
+
+    // Backup original method
+const SS_canPass = Game_CharacterBase.prototype.canPass;
+
+Game_CharacterBase.prototype.canPass = function (x, y, d) {
+    const x2 = $gameMap.roundXWithDirection(x, d);
+    const y2 = $gameMap.roundYWithDirection(y, d);
+
+
+    if (!$gameMap.isValid(x2, y2)) {
+        return false;
+    }
+
+    // First, check the original collision rules (walls, terrain, default events)
+    let canPassOriginal = SS_canPass.call(this, x, y, d);
+    if (canPassOriginal) return true; // Tile is already passable
+
+    const myLevel = this.regionLevel();
+
+    // Get all events at the target tile
+    const eventsAtTile = $gameMap.eventsXyNt(x2, y2);
+
+    // Check if any event at the same level is blocking
+    const sameLevelBlocking = eventsAtTile.some(event =>
+        event.isNormalPriority() && (event.regionLevel() === myLevel)
+    );
+
+    // If no same-level blocking event exists and the map tile itself is passable, allow movement
+    if (!sameLevelBlocking && this.isMapPassable(x, y, d)) return true;
+
+    // Otherwise, blocked
+    return canPassOriginal;
+};
 
     const SS_isMapPassable = Game_CharacterBase.prototype.isMapPassable
 
@@ -1162,6 +1244,7 @@
             const rules = REGION_CONFIG[nextRegionId]?.[rel];
             if (REGION_CONFIG?.[nextRegionId]?.force) return SS_isMapPassable.call(this, x, y, d);
             if (rules && !rules.includes(d2)) return false;
+            if(this._carryId) return false
             return true;
         }
 
@@ -1240,5 +1323,7 @@
         this.addChild(this._regionOverlay);
     };
 
+
+     
 
 })();
