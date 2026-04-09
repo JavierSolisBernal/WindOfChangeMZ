@@ -1306,37 +1306,9 @@
         this.addChild(this._regionOverlay);
     };
 
-    /*
-    SS_pickUpEvent=Game_CharacterBase.prototype.pickUpEvent
-    // Add or replace method on Game_CharacterBase
-    Game_CharacterBase.prototype.pickUpEvent = function (eventId) {
+ 
 
-        const regionId = $gameMap.regionId($gamePlayer._x, $gamePlayer._y);
-        
-        if(!REGION_CONFIG[regionId]) return SS_pickUpEvent.call(this,eventId)
-    
-        const event = $gameMap.event(eventId);
-        if (!event) return;
-
-        // Move event one tile in player direction
-        const dir = $gamePlayer.direction();
-        switch (dir) {
-            case 2: event.moveStraight(2); break;
-            case 4: event.moveStraight(4); break;
-            case 6: event.moveStraight(6); break;
-            case 8: event.moveStraight(8); break;
-        }
-    };
-    */
-
-
-    const SS_getThrowPosition = Game_CharacterBase.prototype.getThrowPosition
-
-    Game_CharacterBase.prototype.getThrowPosition = function (x, y) {
-        
-        return SS_getThrowPosition.call(this, x, y)
-    }
-
+ 
 
 
 })();
