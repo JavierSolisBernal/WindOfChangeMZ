@@ -367,7 +367,7 @@
         //this._regionUpperlayer = this._tilemap;
         this._regionUpperlayer = new PIXI.Container();
         this._regionUpperlayer.sortableChildren = true;
-        // Add it ABOVE tilemap but BELOW characters (we’ll adjust z next)
+        // Add on tilemap
         this._tilemap.addChild(this._regionUpperlayer);
         this._regionUpperlayer.z = 3.1;
         this._regionUpperNeedsSort = false;
@@ -972,25 +972,22 @@
         const regionId = $gameMap.regionId(x, y);
         const regionLevel = getRegionLevel(regionId);
         const charLevel = character.regionLevel();
-        const ind = charLevel * .1
         let offset = y * 0.000001;
 
 
         if (character instanceof Game_Event) {
-            offset = y * 0.000002;
+            //offset = y * 0.000002
+            offset=0.2
         }
 
         // Target Z
         let targetZ;
-
 
         if (charLevel < regionLevel) {
             targetZ = 2.9 + offset; // below
         } else {
             targetZ = 3.2 + offset; // above
         }
-
-
         // Initialize smooth value
         if (this._zSmooth === undefined) {
             this._zSmooth = targetZ;
@@ -1310,6 +1307,8 @@
         this.addChild(this._regionOverlay);
     };
 
+
+    //NEXT CODE IS COMPATIBILITY PATCH TO Lilac_ThrowableEvents
     const SS_canPassExt = Game_CharacterBase.prototype.canPass
     Game_CharacterBase.prototype.canPass = function (x, y, d) {
         const x2 = $gameMap.roundXWithDirection(x, d);
@@ -1326,16 +1325,16 @@
 
     }
 
-
+    /*
     SS_pickUpEvent = Game_CharacterBase.prototype.pickUpEvent
     // Add or replace method on Game_CharacterBase
     Game_CharacterBase.prototype.pickUpEvent = function (eventId) {
-
+        const event = $gameMap.event(eventId);
         const regionId = $gameMap.regionId($gamePlayer._x, $gamePlayer._y);
 
-        if (!REGION_CONFIG[regionId]) return SS_pickUpEvent.call(this, eventId)
+        if (!REGION_CONFIG[regionId]    && $gamePlayer.regionLevel()<REGION_CONFIG[regionId] ) return SS_pickUpEvent.call(this, eventId)
 
-        const event = $gameMap.event(eventId);
+        if(regionId==0) return SS_pickUpEvent.call(this, eventId)
         if (!event) return;
 
         // Move event one tile in player direction
@@ -1347,29 +1346,40 @@
             case 8: event.moveStraight(8); break;
         }
     };
-
-
-    SS_updateRegionZExt = Sprite_Character.prototype.updateRegionZ
+    */
+ 
     Sprite_Character.prototype.updateRegionZ = function () {
-        SS_updateRegionZExt.call(this)
         const character = this._character;
-        const specialEventId = $gamePlayer._carryId; // <-- replace X with your special event ID
+        if (!character) return;
         const x = character.x;
         const y = character.y;
-        // Check for Game_Event
-        if (character instanceof Game_Event) {
-            offset = y * 0.000002;
-            if (character.eventId() === specialEventId) {
-                // Force special event Z above all (max layer)
-                this.z = 3.4;
-                return; // skip smoothing and other calculations
-            }
+        // Target Z
+        let targetZ;
+        let under=2.9
+        let top=3.2
+        let offset = y * 0.0001;
+        const regionId = $gameMap.regionId(x, y);
+        const regionLevel = getRegionLevel(regionId);
+        const charLevel = character.regionLevel();
+        const charPriority = character._priorityType ? character._priorityType : 1;
+        if (character instanceof Game_Event && charPriority>1 && character.eventId() === $gamePlayer._carryId) offset+=0.01
+        if (character instanceof Game_Event && charPriority>1 && character.eventId() !== $gamePlayer._carryId) offset+=0.02
+        if (charLevel < regionLevel) {
+            targetZ =under + offset; // below
+        } else {
+            targetZ = top + offset; // above
+        }
+         // Initialize smooth value
+        if (this._zSmooth === undefined) {
+            this._zSmooth = targetZ;
         }
 
+        // Smooth interpolation (tweak 0.25 for speed)
+        this._zSmooth += (targetZ - this._zSmooth) * 0.25;
 
-
-
+        this.z = this._zSmooth;
+ 
     };
-
+ 
 
 })();
