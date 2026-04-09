@@ -67,6 +67,7 @@
  * @type string
  * @default true
 */
+//$gameMap.event(5).setRegionLevel(2);
 
 (() => {
     const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
@@ -949,7 +950,7 @@
         }
     };
 
-    //$gameMap.event(5).setRegionLevel(2);
+
 
     const SS_Sprite_Character_updatePosition = Sprite_Character.prototype.updatePosition;
     Sprite_Character.prototype.updatePosition = function () {
@@ -1000,6 +1001,9 @@
 
         this.z = this._zSmooth;
     };
+
+
+
 
 
 
@@ -1306,9 +1310,66 @@
         this.addChild(this._regionOverlay);
     };
 
+    const SS_canPassExt = Game_CharacterBase.prototype.canPass
+    Game_CharacterBase.prototype.canPass = function (x, y, d) {
+        const x2 = $gameMap.roundXWithDirection(x, d);
+        const y2 = $gameMap.roundYWithDirection(y, d);
+
+
+        if (!$gameMap.isValid(x2, y2)) {
+            return false;
+        }
+        const nextRegionId = $gameMap.regionId(x2, y2)
+        if (this._carryId && REGION_CONFIG[nextRegionId] && this.regionLevel() < (REGION_CONFIG[nextRegionId]?.level ?? 0)) return false
+
+        return SS_canPassExt.call(this, x, y, d);
+
+    }
+
+
+    SS_pickUpEvent = Game_CharacterBase.prototype.pickUpEvent
+    // Add or replace method on Game_CharacterBase
+    Game_CharacterBase.prototype.pickUpEvent = function (eventId) {
+
+        const regionId = $gameMap.regionId($gamePlayer._x, $gamePlayer._y);
+
+        if (!REGION_CONFIG[regionId]) return SS_pickUpEvent.call(this, eventId)
+
+        const event = $gameMap.event(eventId);
+        if (!event) return;
+
+        // Move event one tile in player direction
+        const dir = $gamePlayer.direction();
+        switch (dir) {
+            case 2: event.moveStraight(2); break;
+            case 4: event.moveStraight(4); break;
+            case 6: event.moveStraight(6); break;
+            case 8: event.moveStraight(8); break;
+        }
+    };
+
+
+    SS_updateRegionZExt = Sprite_Character.prototype.updateRegionZ
+    Sprite_Character.prototype.updateRegionZ = function () {
+        SS_updateRegionZExt.call(this)
+        const character = this._character;
+        const specialEventId = $gamePlayer._carryId; // <-- replace X with your special event ID
+        const x = character.x;
+        const y = character.y;
+        // Check for Game_Event
+        if (character instanceof Game_Event) {
+            offset = y * 0.000002;
+            if (character.eventId() === specialEventId) {
+                // Force special event Z above all (max layer)
+                this.z = 3.4;
+                return; // skip smoothing and other calculations
+            }
+        }
 
 
 
+
+    };
 
 
 })();
