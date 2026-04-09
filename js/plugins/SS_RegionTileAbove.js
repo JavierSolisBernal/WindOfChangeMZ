@@ -977,7 +977,7 @@
 
         if (character instanceof Game_Event) {
             //offset = y * 0.000002
-            offset=0.2
+            offset = 0.2
         }
 
         // Target Z
@@ -1307,8 +1307,32 @@
         this.addChild(this._regionOverlay);
     };
 
+    const SS_getThrowPosition = Game_CharacterBase.prototype.getThrowPosition
+    Game_CharacterBase.prototype.getThrowPosition = function () {
+ 
+        var event = this.carriedEvent();
+
+        var direction = this.direction();
+        var dx = $gameMap.roundXWithDirection(this.x, direction);
+        var dy = $gameMap.roundYWithDirection(this.y, direction);
+
+        var deltaX = $gameMap.deltaX(dx, event.x) * this.throwRange();
+        var deltaY = ($gameMap.deltaY(dy, event.y) - 1) * this.throwRange() + 1;
+        var point = new Point( 0, 0 );
+        point.set( this.x+deltaX+1,  this.y + 1-deltaY );
+        const nextRegionId=$gameMap.regionId(point.x, point.y)
+        const nextlevel=REGION_CONFIG[nextRegionId]?.level??0
+        if($gamePlayer.regionLevel()>nextlevel){
+            point.set( deltaX-1, ( deltaY));
+            event.setRegionLevel(nextlevel)
+            return point
+        }
+        return SS_getThrowPosition.call(this)
+    }
 
     //NEXT CODE IS COMPATIBILITY PATCH TO Lilac_ThrowableEvents
+
+    /*
     const SS_canPassExt = Game_CharacterBase.prototype.canPass
     Game_CharacterBase.prototype.canPass = function (x, y, d) {
         const x2 = $gameMap.roundXWithDirection(x, d);
@@ -1324,7 +1348,7 @@
         return SS_canPassExt.call(this, x, y, d);
 
     }
-
+    */
     /*
     SS_pickUpEvent = Game_CharacterBase.prototype.pickUpEvent
     // Add or replace method on Game_CharacterBase
@@ -1347,7 +1371,7 @@
         }
     };
     */
- 
+
     Sprite_Character.prototype.updateRegionZ = function () {
         const character = this._character;
         if (!character) return;
@@ -1355,21 +1379,23 @@
         const y = character.y;
         // Target Z
         let targetZ;
-        let under=2.9
-        let top=3.2
+        let under = 2.9
+        let top = 3.2
         let offset = y * 0.0001;
         const regionId = $gameMap.regionId(x, y);
         const regionLevel = getRegionLevel(regionId);
         const charLevel = character.regionLevel();
         const charPriority = character._priorityType ? character._priorityType : 1;
-        if (character instanceof Game_Event && charPriority>1 && character.eventId() === $gamePlayer._carryId) offset+=0.01
-        if (character instanceof Game_Event && charPriority>1 && character.eventId() !== $gamePlayer._carryId) offset+=0.02
+
+        if (character instanceof Game_Event && charPriority > 1 && character.eventId() === $gamePlayer._carryId) {offset += 0.01; character.setRegionLevel($gamePlayer.regionLevel())}
+        if (character instanceof Game_Event && charPriority > 1 && character.eventId() !== $gamePlayer._carryId) offset += 0.02
+
         if (charLevel < regionLevel) {
-            targetZ =under + offset; // below
+            targetZ = under + offset; // below
         } else {
             targetZ = top + offset; // above
         }
-         // Initialize smooth value
+        // Initialize smooth value
         if (this._zSmooth === undefined) {
             this._zSmooth = targetZ;
         }
@@ -1378,8 +1404,8 @@
         this._zSmooth += (targetZ - this._zSmooth) * 0.25;
 
         this.z = this._zSmooth;
- 
+
     };
- 
+
 
 })();
