@@ -4,9 +4,14 @@
 * @author Squall_seawave 
  
 * @param Rules
-* @text test
-* @desc Rules to check
+* @text Rules
+* @desc Rules to apply alpha
 * @type struct<Rule>[]
+*
+* @param Regions
+* @text regions
+* @desc Configuration for regions
+* @type struct<Region>[]
 *
 */
 
@@ -66,7 +71,65 @@
  * @param value
  * @type string
  * @default true
+ */
+/*~struct~Region:
+* @param regionId
+* @type number
+* @default 1
+* 
+* @param alpha
+* @type number
+* @decimals 2
+* @default 1
+* 
+* @param level
+* @type number
+* @default 0
+* 
+* @param force
+* @desc Force alpha to be always 1
+* @type boolean
+* @default false
+* 
+* @param skip
+* @desc Skip tile creation
+* @type boolean
+* @default false
+* 
+* @param backgroundTile
+* @type number
+* @default 0
+* 
+* @param below
+* @text PassBelow
+* @type struct<Direction>
+* 
+* @param above
+* @text PassAbove
+* @type struct<Direction>
 */
+/*~struct~Direction:
+* @param up
+* @text UP
+* @type boolean
+* @default false
+* 
+* @param down
+* @text DOWN
+* @type boolean
+* @default false
+* 
+* @param left
+* @text LEFT
+* @type boolean
+* @default false
+* 
+* @param right
+* @text RIGTH
+* @type boolean
+* @default false
+*/
+
 //$gameMap.event(5).setRegionLevel(2);
 
 (() => {
@@ -86,8 +149,13 @@
             return null;
         }
     }).filter(r => r !== null);
+
+
+    /*
     const REGION_CONFIG = {
-        254: { alpha: 1, force: true },
+
+        253: { level: 1, skip: true },
+        254: { alpha: 1, level: 1, force: true },
         255: { alpha: 0.65 },
         4: { alpha: 0, backgroundTile: 0 },
         2: {
@@ -99,9 +167,60 @@
 
         }
     };
+    */
+    const rawRegions = JSON.parse(params.Regions || "[]");
+    const REGION_CONFIG = {};
+
+    for (const r of rawRegions) {
+        if (!r) continue;
+
+        let obj;
+        try {
+            obj = JSON.parse(r);
+        } catch (e) {
+            console.warn("Invalid region struct:", r);
+            continue;
+        }
+
+        const id = Number(obj.regionId);
+        if (!id) continue;
+
+        REGION_CONFIG[id] = {
+            alpha: obj.alpha !== undefined ? Number(obj.alpha) : 1,
+            level: obj.level !== undefined ? Number(obj.level) : 0,
+            force: obj.force === "true" || obj.force === true,
+            skip: obj.skip === "true" || obj.skip === true,
+            backgroundTile: obj.backgroundTile !== undefined ? Number(obj.backgroundTile) : undefined,
+            below: parseDirectionStruct(obj.below),
+            above: parseDirectionStruct(obj.above)
+        };
+    }
+
+
+    function parseDirectionStruct(raw) {
+        if (!raw) return null;
+
+        let obj;
+        try {
+            obj = JSON.parse(raw);
+        } catch {
+            return null;
+        }
+
+        const dirs = [];
+
+        if (obj.up === "true") dirs.push(8);
+        if (obj.down === "true") dirs.push(2);
+        if (obj.left === "true") dirs.push(4);
+        if (obj.right === "true") dirs.push(6);
+
+        return dirs.length > 0 ? dirs : null;
+    }
+
+
     const DEBUG = false;
     const REGION_LEVEL_GATE = {
-        3: { level: 1, dir_lock: [4, 6], prev_regions: [2] },
+        3: { level: 1, dir_lock: [4, 6] },
 
     }
 
@@ -476,7 +595,7 @@
                 const region = $gameMap.regionId(mapX, mapY);
 
                 if (REGION_CONFIG[region] === undefined) continue;
-
+                if (REGION_CONFIG[region]?.skip) continue;
                 const key = `${mapX},${mapY}`;
                 newMap[key] = true;
 
@@ -568,6 +687,8 @@
 
                 // Only render allowed regions
                 if (REGION_CONFIG[region]?.backgroundTile === undefined) continue;
+                if (REGION_CONFIG[region].skip) continue;
+
 
                 const key = `${mapX},${mapY}`;
                 newMap[key] = true;
@@ -1186,9 +1307,10 @@
         if (!$gameMap.isValid(x2, y2)) {
             return false;
         }
-
+        
         // First, check the original collision rules (walls, terrain, default events)
         let canPassOriginal = SS_canPass.call(this, x, y, d);
+       
         if (canPassOriginal) return true; // Tile is already passable
 
         const myLevel = this.regionLevel();
@@ -1217,6 +1339,9 @@
 
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
+
+        
+        if (REGION_CONFIG[nextRegionId]?.skip) return SS_isMapPassable.call(this, x, y, d);
 
         //let move inside the same region freely
         if (regionId > 0 && regionId == nextRegionId) return $gameMap.isValid(x2, y2);
@@ -1306,73 +1431,14 @@
         this._regionOverlay = new RegionOverlay();
         this.addChild(this._regionOverlay);
     };
+    
+    const identifier = "Lilac_ThrowableEvents.js"
+    
+    const paramspicker = PluginManager.parameters(identifier);
 
-    const SS_getThrowPosition = Game_CharacterBase.prototype.getThrowPosition
-    Game_CharacterBase.prototype.getThrowPosition = function () {
- 
-        var event = this.carriedEvent();
-
-        var direction = this.direction();
-        var dx = $gameMap.roundXWithDirection(this.x, direction);
-        var dy = $gameMap.roundYWithDirection(this.y, direction);
-
-        var deltaX = $gameMap.deltaX(dx, event.x) * this.throwRange();
-        var deltaY = ($gameMap.deltaY(dy, event.y) - 1) * this.throwRange() + 1;
-        var point = new Point( 0, 0 );
-        point.set( this.x+deltaX+1,  this.y + 1-deltaY );
-        const nextRegionId=$gameMap.regionId(point.x, point.y)
-        const nextlevel=REGION_CONFIG[nextRegionId]?.level??0
-        if($gamePlayer.regionLevel()>nextlevel){
-            point.set( deltaX-1, ( deltaY));
-            event.setRegionLevel(nextlevel)
-            return point
-        }
-        return SS_getThrowPosition.call(this)
-    }
-
-    //NEXT CODE IS COMPATIBILITY PATCH TO Lilac_ThrowableEvents
-
-    /*
-    const SS_canPassExt = Game_CharacterBase.prototype.canPass
-    Game_CharacterBase.prototype.canPass = function (x, y, d) {
-        const x2 = $gameMap.roundXWithDirection(x, d);
-        const y2 = $gameMap.roundYWithDirection(y, d);
-
-
-        if (!$gameMap.isValid(x2, y2)) {
-            return false;
-        }
-        const nextRegionId = $gameMap.regionId(x2, y2)
-        if (this._carryId && REGION_CONFIG[nextRegionId] && this.regionLevel() < (REGION_CONFIG[nextRegionId]?.level ?? 0)) return false
-
-        return SS_canPassExt.call(this, x, y, d);
-
-    }
-    */
-    /*
-    SS_pickUpEvent = Game_CharacterBase.prototype.pickUpEvent
-    // Add or replace method on Game_CharacterBase
-    Game_CharacterBase.prototype.pickUpEvent = function (eventId) {
-        const event = $gameMap.event(eventId);
-        const regionId = $gameMap.regionId($gamePlayer._x, $gamePlayer._y);
-
-        if (!REGION_CONFIG[regionId]    && $gamePlayer.regionLevel()<REGION_CONFIG[regionId] ) return SS_pickUpEvent.call(this, eventId)
-
-        if(regionId==0) return SS_pickUpEvent.call(this, eventId)
-        if (!event) return;
-
-        // Move event one tile in player direction
-        const dir = $gamePlayer.direction();
-        switch (dir) {
-            case 2: event.moveStraight(2); break;
-            case 4: event.moveStraight(4); break;
-            case 6: event.moveStraight(6); break;
-            case 8: event.moveStraight(8); break;
-        }
-    };
-    */
-
+    const SS_EXT_updateRegionZ= Sprite_Character.prototype.updateRegionZ
     Sprite_Character.prototype.updateRegionZ = function () {
+        if(!paramspicker) return SS_EXT_updateRegionZ.call(this)
         const character = this._character;
         if (!character) return;
         const x = character.x;
@@ -1387,7 +1453,7 @@
         const charLevel = character.regionLevel();
         const charPriority = character._priorityType ? character._priorityType : 1;
 
-        if (character instanceof Game_Event && charPriority > 1 && character.eventId() === $gamePlayer._carryId) {offset += 0.01; character.setRegionLevel($gamePlayer.regionLevel())}
+        if (character instanceof Game_Event && charPriority > 1 && character.eventId() === $gamePlayer._carryId) { offset += 0.01; character.setRegionLevel($gamePlayer.regionLevel()) }
         if (character instanceof Game_Event && charPriority > 1 && character.eventId() !== $gamePlayer._carryId) offset += 0.02
 
         if (charLevel < regionLevel) {
@@ -1406,6 +1472,58 @@
         this.z = this._zSmooth;
 
     };
+
+
+    
+    const SS_getThrowPosition = Game_CharacterBase.prototype.getThrowPosition
+    Game_CharacterBase.prototype.getThrowPosition = function () {
+
+        var event = this.carriedEvent();
+
+        var direction = this.direction();
+        var dx = $gameMap.roundXWithDirection(this.x, direction);
+        var dy = $gameMap.roundYWithDirection(this.y, direction);
+
+        var deltaX = $gameMap.deltaX(dx, event.x) * this.throwRange();
+        var deltaY = ($gameMap.deltaY(dy, event.y) - 1) * this.throwRange() + 1;
+        const point = this.adjustThrowPositionunlimited(deltaX, deltaY)
+        const nextRegionId = $gameMap.regionId(event.x+point.x, event.y+point.y)
+        const nextlevel = REGION_CONFIG[nextRegionId]?.level ?? 0
+
+        const currentRegionId = $gameMap.regionId($gamePlayer._x, $gamePlayer._y)
+        const currentlevel = REGION_CONFIG[currentRegionId]?.level ?? 0
+
+
+        if (currentlevel > nextlevel) {
+            event.setRegionLevel(nextlevel)
+            return point
+        }
+        return SS_getThrowPosition.call(this)
+    }
+
+
+    //-----------------------------------------------------------------------------
+    Game_CharacterBase.prototype.adjustThrowPositionunlimited = function (x, y) { // adjust the throw position to ensure valid destination.
+        //-----------------------------------------------------------------------------
+        
+        var point = new Point(x, y);
+        var signX = Math.sign(x);
+        var signY = Math.sign(y);
+        var d = this.direction();
+
+        if (Math.abs(x) > 0) {
+            const i = Math.abs(x) - 1
+            point.set(this.x + i * signX, this.y + y - 1);
+        } else if (Math.abs(y - 1) > 0) {
+            const i = Math.abs(y - 1) - 1
+            point.set(this.x + x, this.y + i * signY);
+        }
+        point.set(point.x - this.x, (point.y - this.y) + 1);
+
+        return point
+
+    }
+
 
 
 })();
