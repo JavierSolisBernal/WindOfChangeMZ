@@ -151,23 +151,7 @@
     }).filter(r => r !== null);
 
 
-    /*
-    const REGION_CONFIG = {
 
-        253: { level: 1, skip: true },
-        254: { alpha: 1, level: 1, force: true },
-        255: { alpha: 0.65 },
-        4: { alpha: 0, backgroundTile: 0 },
-        2: {
-            alpha: 0.65,
-            level: 1,
-            backgroundTile: 46,
-            below: [4, 6], //horizontal
-            above: [2, 8]  //vertical  
-
-        }
-    };
-    */
     const rawRegions = JSON.parse(params.Regions || "[]");
     const REGION_CONFIG = {};
 
@@ -220,7 +204,7 @@
 
     const DEBUG = false;
     const REGION_LEVEL_GATE = {
-        3: { level: 1, dir_lock: [4, 6] },
+        3: { level: 1 },
 
     }
 
@@ -390,8 +374,6 @@
         this.createRegionLowerLayer();
 
         this.createRegionUpperLayer();
-
-        // this.createRegionLayer();
     };
 
 
@@ -451,6 +433,12 @@
 
         if (this._regionLowerSprites) {
             this._regionLowerSprites.destroy({ children: true });
+            this._regionLowerSprites = null;
+        }
+
+        if (this._regionUpperlayer) {
+            this._regionUpperlayer.destroy({ children: true });
+            this._regionUpperlayer = null;
         }
 
         SS_destroy.call(this, options);
@@ -468,10 +456,6 @@
         //  LOWER-specific pools & maps
         this._regionLowerPool = [];
         this._regionLowerMap = {};
-
-        // (optional) keep if you use tile bitmaps for lower
-
-
         //  LOWER cache
         this._lastLowerStartX = -1;
         this._lastLowerStartY = -1;
@@ -483,17 +467,14 @@
 
 
     Spriteset_Map.prototype.createRegionUpperLayer = function () {
-        //this._regionUpperlayer = this._tilemap;
         this._regionUpperlayer = new PIXI.Container();
         this._regionUpperlayer.sortableChildren = true;
-        // Add on tilemap
         this._tilemap.addChild(this._regionUpperlayer);
         this._regionUpperlayer.z = 3.1;
         this._regionUpperNeedsSort = false;
         //  UPPER-specific pools & maps
         this._regionUpperPool = [];
         this._regionUpperMap = {};
-
         //  UPPER cache
         this._lastUpperStartX = -1;
         this._lastUpperStartY = -1;
@@ -555,13 +536,9 @@
         //Always update existing sprite positions first to prevent "lagging" behind the map
         for (const key in this._regionUpperMap) {
             const c = this._regionUpperMap[key];
-
-
-
             c.x = (c.mapX - displayX) * tw;
             c.y = (c.mapY - displayY) * th;
         }
-
 
         // 3. Cache check: If the integer tile hasn't changed, we don't need to create/remove sprites
         if (
@@ -571,16 +548,13 @@
         ) {
             return;
         }
-
         this._lastUpperStartX = startX;
         this._lastUpperStartY = startY;
 
         // Buffer of 2 tiles to prevent pop-in at edges
         const screenTileW = Math.ceil(Graphics.width / tw) + 2;
         const screenTileH = Math.ceil(Graphics.height / th) + 2;
-
         const newMap = {};
-
         const rulesPassed = this._cachedRulesResult !== undefined
             ? this._cachedRulesResult
             : conditionFn();
@@ -591,21 +565,17 @@
                 const mapY = startY + y;
 
                 if (!$gameMap.isValid(mapX, mapY)) continue;
-
                 const region = $gameMap.regionId(mapX, mapY);
-
+                //ONLY APPLY FOR REGION CONFIGURED
                 if (REGION_CONFIG[region] === undefined) continue;
+                //ONLY APPEAR FOR NON SKIPPED REGIONS
                 if (REGION_CONFIG[region]?.skip) continue;
                 const key = `${mapX},${mapY}`;
                 newMap[key] = true;
 
                 if (this._regionUpperMap[key]) continue;
-
                 let container = this._buildRegionContainer(mapX, mapY)
                 container.name = "TileUpper";
-
-
-
                 let alpha = 1;
                 const config = REGION_CONFIG[region];
                 const level = getRegionLevel(region);
@@ -631,7 +601,7 @@
             }
         }
 
-        // 4. Cleanup: Remove tiles that are no longer in the 'newMap'
+        // 4. Cleanup: Remove tiles that are no longer in use in the map
         for (const key in this._regionUpperMap) {
             if (!newMap[key]) {
                 const c = this._regionUpperMap[key];
@@ -685,7 +655,7 @@
 
                 const region = $gameMap.regionId(mapX, mapY);
 
-                // Only render allowed regions
+                // ONLY APPLY FOR REGION CONFIGURED AND NOT SKIPPED
                 if (REGION_CONFIG[region]?.backgroundTile === undefined) continue;
                 if (REGION_CONFIG[region].skip) continue;
 
@@ -725,10 +695,7 @@
                 container.y = mapY * th;
                 container.region = region;
 
-                // Keep below player
                 container.z = 0;
-
-
 
                 this._regionLowerSprites.addChild(container);
 
@@ -915,6 +882,7 @@
 
     Spriteset_Map.prototype.updateRegionAlpha = function () {
 
+        //CACHE OF LAST RULE STATE set check to 10 frames(1)
         if (this._cachedRulesResult === undefined || (Graphics.frameCount % 10 === 0)) {
             this._cachedRulesResult = conditionFn();
         }
@@ -922,17 +890,19 @@
 
         const visible = $gameSystem._under ?? true;
 
-        //   LOWER LAYER
+     
+        
+        if (rulesPassed === this._lastRulesState &&
+            visible === this._lastRegionVisibility) {
+            return;
+        }
+
+        //   LOWER LAYER IS ALWAYS INVISIBLE IF THE RULES ARE FALSE
         if (this._regionLowerSprites) {
             this._regionLowerSprites.visible = !!rulesPassed;
         }
 
 
-
-        if (rulesPassed === this._lastRulesState &&
-            visible === this._lastRegionVisibility) {
-            return;
-        }
 
         this._lastRulesState = rulesPassed;
         this._lastRegionVisibility = visible;
@@ -1035,48 +1005,24 @@
         if (x !== this._lastX || y !== this._lastY) {
             this._lastX = x;
             this._lastY = y;
-            this._handleRegionZigZag(region, x, y);
+            this._handleRegionChange(region);
         }
     };
 
 
+    Game_CharacterBase.prototype._handleRegionChange = function (region) {
+        if (!REGION_LEVEL_GATE[region] && REGION_CONFIG[region]) return;
+        const level = REGION_LEVEL_GATE[region]?.level ?? 0
+        this.setRegionLevel(level);
+    }
 
 
-
-    Game_CharacterBase.prototype._handleRegionZigZag = function (region, x, y) {
-
-        const keys = Object.keys(REGION_LEVEL_GATE).map(k => parseInt(k, 10));
-        if (!keys.includes(region)) {
-            this._lastRegionTile = null;
-            return;
-        }
-
-        // First tile
-        if (!this._lastRegionTile) {
-            this._lastRegionTile = { x, y };
-            return;
-        }
-
-        // Must be different tile
-        if (this._lastRegionTile.x !== x || this._lastRegionTile.y !== y) {
-            this._regionCount[region] = this._regionCount[region] || 0;
-            this._regionCount[region]++;
-
-            // change per region
-            const delta = this._regionCount[region] % 2 === 1 ? 1 : -1;
-
-            this.setRegionLevel(this.regionLevel() + delta);
-
-            this._lastRegionTile = { x, y };
-        }
-    };
 
 
 
     const SS_Sprite_Character_updatePosition = Sprite_Character.prototype.updatePosition;
     Sprite_Character.prototype.updatePosition = function () {
         SS_Sprite_Character_updatePosition.call(this);
-
         this.updateRegionZ();
     };
 
@@ -1097,8 +1043,7 @@
 
 
         if (character instanceof Game_Event) {
-            //offset = y * 0.000002
-            offset = 0.2
+             offset = 0.2
         }
 
         // Target Z
@@ -1127,7 +1072,6 @@
 
     // Helper function to safely set region IDs
     Game_Map.prototype.setRegionId = function (x, y, regionId = 0) {
-
         const width = $dataMap.width;
         const height = $dataMap.height;
         const key = (5 * height + y) * width + x;
@@ -1135,54 +1079,12 @@
     };
 
 
-    Game_Map.prototype.checkRegionMap = function () {
-
-        const width = this.width();
-        const height = this.height();
-        const temp_array = [];
-        const keys = Object.keys(REGION_LEVEL_GATE).map(k => parseInt(k, 10));
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const region = this.regionId(x, y);
-                if (!keys.includes(region)) continue
-                const locations = [
-                    [x, y - 1], // top
-                    [x, y + 1], // down
-                    [x - 1, y], // left
-                    [x + 1, y]  // right
-                ];
-
-                locations.forEach(element => {
-                    const x = element[0]
-                    const y = element[1]
-                    if (this.regionId(x, y) == 0)
-                        temp_array.push({ x: x, y: y, region: region })
-                });
-
-            }
-        }
-        temp_array.forEach(e => {
-            this.setRegionId(e.x, e.y, e.region)
-        });
-
-    }
-    // Ensure code runs after map data is fully initialized
-    const ss_onMapLoaded = Scene_Map.prototype.onMapLoaded
-    Scene_Map.prototype.onMapLoaded = function () {
-        $gameMap.checkRegionMap()
-        ss_onMapLoaded.call(this)
-    };
-
-
-
     function isUnderRegion(character) {
         const x = character.x;
         const y = character.y;
-
         const regionId = $gameMap.regionId(x, y);
         const regionLevel = getRegionLevel(regionId);
         const charLevel = character.regionLevel();
-
         return charLevel < regionLevel;
     }
 
@@ -1217,17 +1119,7 @@
         return "same";
     }
 
-
-    Game_Player.prototype.getSameLevelEvents = function (events) {
-        return events.filter(event => {
-            if (!event) return false;
-
-            const playerLevel = this.regionLevel();
-            const eventLevel = event.regionLevel();
-
-            return playerLevel === eventLevel;
-        });
-    };
+ 
 
     const SS_startMapEvent = Game_Player.prototype.startMapEvent;
     Game_Player.prototype.startMapEvent = function (x, y, triggers, normal) {
@@ -1257,11 +1149,8 @@
 
         // Default level if not specified
         this._regionLevel = 0;
-
-
+        //
         this._invisible = this.event().meta.invisible ?? false
-
-
         // Check the note for <level:n>
         const levelMeta = this.event().note.match(/<level:(\d+)>/i);
         if (levelMeta) {
@@ -1287,7 +1176,7 @@
             this._cachedRulesResult = conditionFn();
         }
 
-        // Rule: if event level != player level, make alpha 0.75
+        // Rule: if event is invisible use the cache rules make alpha 0.75
         if (event._invisible) {
             this.alpha = this._cachedRulesResult ? 0.75 : 0
         }
@@ -1307,10 +1196,10 @@
         if (!$gameMap.isValid(x2, y2)) {
             return false;
         }
-        
+
         // First, check the original collision rules (walls, terrain, default events)
         let canPassOriginal = SS_canPass.call(this, x, y, d);
-       
+
         if (canPassOriginal) return true; // Tile is already passable
 
         const myLevel = this.regionLevel();
@@ -1340,7 +1229,7 @@
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
 
-        
+
         if (REGION_CONFIG[nextRegionId]?.skip) return SS_isMapPassable.call(this, x, y, d);
 
         //let move inside the same region freely
@@ -1431,14 +1320,43 @@
         this._regionOverlay = new RegionOverlay();
         this.addChild(this._regionOverlay);
     };
-    
+
+
+    const _Sprite_Character_update = Sprite_Character.prototype.update;
+    Sprite_Character.prototype.update = function () {
+        _Sprite_Character_update.call(this);
+        if (DEBUG) this.updatePartyLabel();
+    };
+
+    Sprite_Character.prototype.updatePartyLabel = function () {
+        if (!this._partyLabel) {
+            if (this._character === $gamePlayer) {
+                this._partyLabel = new Sprite(new Bitmap(48, 24));
+                this._partyLabel.anchor.x = 0.5;
+                this._partyLabel.anchor.y = 1;
+                this.addChild(this._partyLabel);
+            }
+        }
+
+        if (this._partyLabel) {
+            const count = this._character.regionLevel();
+            const bmp = this._partyLabel.bitmap;
+
+            bmp.clear();
+            bmp.fontSize = 20;
+            bmp.drawText(count, 0, 0, 48, 24, "center");
+
+            this._partyLabel.y = -48; // height above player
+        }
+    };
+
     const identifier = "Lilac_ThrowableEvents.js"
-    
+
     const paramspicker = PluginManager.parameters(identifier);
 
-    const SS_EXT_updateRegionZ= Sprite_Character.prototype.updateRegionZ
+    const SS_EXT_updateRegionZ = Sprite_Character.prototype.updateRegionZ
     Sprite_Character.prototype.updateRegionZ = function () {
-        if(!paramspicker) return SS_EXT_updateRegionZ.call(this)
+        if (!paramspicker) return SS_EXT_updateRegionZ.call(this)
         const character = this._character;
         if (!character) return;
         const x = character.x;
@@ -1474,7 +1392,7 @@
     };
 
 
-    
+
     const SS_getThrowPosition = Game_CharacterBase.prototype.getThrowPosition
     Game_CharacterBase.prototype.getThrowPosition = function () {
 
@@ -1487,7 +1405,7 @@
         var deltaX = $gameMap.deltaX(dx, event.x) * this.throwRange();
         var deltaY = ($gameMap.deltaY(dy, event.y) - 1) * this.throwRange() + 1;
         const point = this.adjustThrowPositionunlimited(deltaX, deltaY)
-        const nextRegionId = $gameMap.regionId(event.x+point.x, event.y+point.y)
+        const nextRegionId = $gameMap.regionId(event.x + point.x, event.y + point.y)
         const nextlevel = REGION_CONFIG[nextRegionId]?.level ?? 0
 
         const currentRegionId = $gameMap.regionId($gamePlayer._x, $gamePlayer._y)
@@ -1505,7 +1423,7 @@
     //-----------------------------------------------------------------------------
     Game_CharacterBase.prototype.adjustThrowPositionunlimited = function (x, y) { // adjust the throw position to ensure valid destination.
         //-----------------------------------------------------------------------------
-        
+
         var point = new Point(x, y);
         var signX = Math.sign(x);
         var signY = Math.sign(y);
