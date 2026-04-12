@@ -361,6 +361,43 @@
         return tileIndex + 1536;
     }
 
+    //globalizing rules
+
+    Game_System.prototype.initRegionRulesCache = function () {
+        this._regionRulesCache = undefined;
+        this._regionRulesFrame = -1;
+    };
+
+    const _GS_initialize = Game_System.prototype.initialize;
+    Game_System.prototype.initialize = function () {
+        _GS_initialize.call(this);
+        this.initRegionRulesCache();
+    };
+
+    Game_System.prototype.evaluateRegionRules = function () {
+        for (const rule of Rules) {
+            if (!evaluateRule(rule)) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+
+    Game_System.prototype.regionRulesPassed = function () {
+        const frame = Graphics.frameCount;
+
+        // Cache every 10 frames (same as your current logic)
+        if (
+            this._regionRulesCache === undefined ||
+            frame - this._regionRulesFrame >= 10
+        ) {
+            this._regionRulesCache = this.evaluateRegionRules();
+            this._regionRulesFrame = frame;
+        }
+
+        return this._regionRulesCache;
+    };
 
     // ==============================
     // INIT
@@ -555,9 +592,7 @@
         const screenTileW = Math.ceil(Graphics.width / tw) + 2;
         const screenTileH = Math.ceil(Graphics.height / th) + 2;
         const newMap = {};
-        const rulesPassed = this._cachedRulesResult !== undefined
-            ? this._cachedRulesResult
-            : conditionFn();
+        const rulesPassed = $gameSystem.regionRulesPassed();
         const visible = $gameSystem._under ?? true;
         for (let y = -1; y < screenTileH; y++) { // Start at -1 to handle smooth scrolling
             for (let x = -1; x < screenTileW; x++) {
@@ -882,16 +917,11 @@
 
     Spriteset_Map.prototype.updateRegionAlpha = function () {
 
-        //CACHE OF LAST RULE STATE set check to 10 frames(1)
-        if (this._cachedRulesResult === undefined || (Graphics.frameCount % 10 === 0)) {
-            this._cachedRulesResult = conditionFn();
-        }
-        const rulesPassed = this._cachedRulesResult;
+        // Get global cached result
+        const rulesPassed = $gameSystem.regionRulesPassed();
 
         const visible = $gameSystem._under ?? true;
 
-     
-        
         if (rulesPassed === this._lastRulesState &&
             visible === this._lastRegionVisibility) {
             return;
@@ -914,15 +944,27 @@
         const screenTileH = Math.ceil(Graphics.height / $gameMap.tileHeight()) + 2;
 
 
-        const regionAlpha = {};
-        for (const regionId in REGION_CONFIG) {
-            const config = REGION_CONFIG[regionId];
-            if (!config) regionAlpha[regionId] = 1;
-            else if (config.force) regionAlpha[regionId] = config.alpha;
-            else if (rulesPassed) regionAlpha[regionId] = 0.5;
-            else if (visible) regionAlpha[regionId] = config.alpha;
-            else regionAlpha[regionId] = 1;
+        if (!this._cachedRegionAlpha ||
+            this._cachedRegionAlphaState !== rulesPassed ||
+            this._cachedRegionVisible !== visible) {
+
+            this._cachedRegionAlpha = {};
+
+            for (const regionId in REGION_CONFIG) {
+                const config = REGION_CONFIG[regionId];
+
+                if (!config) this._cachedRegionAlpha[regionId] = 1;
+                else if (config.force) this._cachedRegionAlpha[regionId] = config.alpha;
+                else if (rulesPassed) this._cachedRegionAlpha[regionId] = 0.5;
+                else if (visible) this._cachedRegionAlpha[regionId] = config.alpha;
+                else this._cachedRegionAlpha[regionId] = 1;
+            }
+
+            this._cachedRegionAlphaState = rulesPassed;
+            this._cachedRegionVisible = visible;
         }
+
+        const regionAlpha = this._cachedRegionAlpha;
         // Apply precomputed alpha
         for (const key in this._regionUpperMap) {
             const c = this._regionUpperMap[key];
@@ -1043,7 +1085,7 @@
 
 
         if (character instanceof Game_Event) {
-             offset = 0.2
+            offset = 0.2
         }
 
         // Target Z
@@ -1119,7 +1161,7 @@
         return "same";
     }
 
- 
+
 
     const SS_startMapEvent = Game_Player.prototype.startMapEvent;
     Game_Player.prototype.startMapEvent = function (x, y, triggers, normal) {
@@ -1171,17 +1213,13 @@
 
         const event = this._character;
 
+        // Get global cached result (fast, already optimized)
+        const rulesPassed = $gameSystem.regionRulesPassed();
 
-        if (this._cachedRulesResult === undefined || (Graphics.frameCount % 10 === 0)) {
-            this._cachedRulesResult = conditionFn();
-        }
-
-        // Rule: if event is invisible use the cache rules make alpha 0.75
         if (event._invisible) {
-            this.alpha = this._cachedRulesResult ? 0.75 : 0
+            this.alpha = rulesPassed ? 0.75 : 0;
         }
     };
-
 
 
 
