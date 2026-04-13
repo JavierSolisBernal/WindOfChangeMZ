@@ -1286,6 +1286,18 @@
                 return true;
             }
 
+            if (fromGate && gateType === GATE_TYPE.ELEVATOR) {
+                return true; // allow any level jump
+            }
+
+            if (fromGate && gateType === GATE_TYPE.DROP) {
+                return diff <= 0;
+            }
+
+            if (fromGate && toGate) {
+                return diff === 1; // only upward stairs
+            }
+
             // -------------------------
             // 2. NORMAL WORLD MOVEMENT
             // -------------------------
