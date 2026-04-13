@@ -1257,6 +1257,44 @@
         return canPassOriginal;
     };
 
+
+    const GateRules = {
+
+        canMove(fromLevel, toLevel, fromGate, toGate, dir) {
+
+            const diff = toLevel - fromLevel;
+
+            // -------------------------
+            // 1. BOTH SIDES ARE GATES
+            // -------------------------
+            if (fromGate || toGate) {
+
+                // ENTERING gate
+                if (toGate) {
+
+                    // rule: same level OR coming from below
+                    if (!(diff === 0 || diff === 1)) return false;
+                }
+
+                // LEAVING gate
+                if (fromGate) {
+
+                    // rule: same level OR going down
+                    if (!(diff === 0 || diff === -1)) return false;
+                }
+
+                return true;
+            }
+
+            // -------------------------
+            // 2. NORMAL WORLD MOVEMENT
+            // -------------------------
+            // only allow flat or step-down movement
+            return diff === 0 || diff === -1;
+        }
+    };
+
+
     const SS_isMapPassable = Game_CharacterBase.prototype.isMapPassable
 
     Game_CharacterBase.prototype.isMapPassable = function (x, y, d) {
@@ -1266,6 +1304,35 @@
 
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
+        const myLevel = this.regionLevel();
+        const nextLevel = REGION_LEVEL_GATE[nextRegionId]?.level
+            ?? REGION_CONFIG[nextRegionId]?.level
+            ?? 0;
+
+        const fromGate = !!REGION_LEVEL_GATE[regionId];
+        const toGate = !!REGION_LEVEL_GATE[nextRegionId];
+
+        const canMove = GateRules.canMove(
+            myLevel,
+            nextLevel,
+            fromGate,
+            toGate,
+            d
+        );
+
+        //if (!canMove) return false;
+
+        if (REGION_LEVEL_GATE[regionId] || REGION_LEVEL_GATE[nextRegionId]) {
+            if (regionId > 0 && regionId == nextRegionId) return $gameMap.isValid(x2, y2);
+            const diff = nextLevel - myLevel;
+            if (REGION_LEVEL_GATE[regionId]) {
+                if (!(diff === 0 || diff === -1)) return false;
+            }
+            if (REGION_LEVEL_GATE[nextRegionId]) {
+                if (!(diff === 0 || diff === 1)) return false;
+            }
+
+        }
 
 
         if (REGION_CONFIG[nextRegionId]?.skip) return SS_isMapPassable.call(this, x, y, d);
