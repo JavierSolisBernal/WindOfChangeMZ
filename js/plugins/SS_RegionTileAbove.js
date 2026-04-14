@@ -202,7 +202,7 @@
     }
 
 
-    const DEBUG = false;
+    const DEBUG = true;
     const REGION_LEVEL_GATE = {
         3: { level: 1 },
 
@@ -1231,9 +1231,7 @@
         const y2 = $gameMap.roundYWithDirection(y, d);
 
 
-        if (!$gameMap.isValid(x2, y2)) {
-            return false;
-        }
+        if (!$gameMap.isValid(x2, y2)) return false;
 
         // First, check the original collision rules (walls, terrain, default events)
         let canPassOriginal = SS_canPass.call(this, x, y, d);
@@ -1260,49 +1258,33 @@
 
     const GateRules = {
 
-        canMove(fromLevel, toLevel, fromGate, toGate, dir) {
+        canMove(fromLevel, toLevel, regionId, nextRegionId, dir) {
+            const fromGate = !!REGION_LEVEL_GATE[regionId];
+            const toGate = !!REGION_LEVEL_GATE[nextRegionId];
+            const toBridge = !!REGION_CONFIG[nextRegionId];
+            const fromBridge = !!REGION_CONFIG[regionId];
+            const fromSpecial = !!REGION_CONFIG[regionId]?.skip || !!REGION_CONFIG[regionId]?.force;
+            const toSpecial = !!REGION_CONFIG[nextRegionId]?.skip || !!REGION_CONFIG[nextRegionId]?.force;
 
-            const diff = toLevel - fromLevel;
+            // If neither tile is a gate or is not assigned → always allow
+            if (!(fromGate || toGate) && !(fromSpecial || toSpecial)) return true
 
-            // -------------------------
-            // 1. BOTH SIDES ARE GATES
-            // -------------------------
-            if (fromGate || toGate) {
+            // If moving between gate ↔ bridge → enforce same level
+            if ((toBridge && fromGate) || (fromBridge && toGate)) return toLevel === fromLevel
 
-                // ENTERING gate
-                if (toGate) {
+            //Any movement involving a gate (except gate ↔ bridge) is limited to ±1 level
+            if ((fromGate || toGate) && (fromSpecial || toSpecial)) return Math.abs(toLevel - fromLevel) <= 1
 
-                    // rule: same level OR coming from below
-                    if (!(diff === 0 || diff === 1)) return false;
-                }
+            // If moving between configured tiles → enforce same level
+            if (fromSpecial && toSpecial) return toLevel === fromLevel
+            // If moving between configured tiles → enforce same level
+            if (fromBridge && toSpecial) return toLevel === fromLevel
+            // If moving between configured tiles → enforce same level
+            if (fromSpecial && toBridge) return toLevel === fromLevel
 
-                // LEAVING gate
-                if (fromGate) {
+            return true
 
-                    // rule: same level OR going down
-                    if (!(diff === 0 || diff === -1)) return false;
-                }
 
-                return true;
-            }
-
-            if (fromGate && gateType === GATE_TYPE.ELEVATOR) {
-                return true; // allow any level jump
-            }
-
-            if (fromGate && gateType === GATE_TYPE.DROP) {
-                return diff <= 0;
-            }
-
-            if (fromGate && toGate) {
-                return diff === 1; // only upward stairs
-            }
-
-            // -------------------------
-            // 2. NORMAL WORLD MOVEMENT
-            // -------------------------
-            // only allow flat or step-down movement
-            return diff === 0 || diff === -1;
         }
     };
 
@@ -1321,19 +1303,20 @@
             ?? REGION_CONFIG[nextRegionId]?.level
             ?? 0;
 
-        const fromGate = !!REGION_LEVEL_GATE[regionId];
-        const toGate = !!REGION_LEVEL_GATE[nextRegionId];
+
 
         const canMove = GateRules.canMove(
             myLevel,
             nextLevel,
-            fromGate,
-            toGate,
+            regionId,
+            nextRegionId,
             d
         );
 
-        //if (!canMove) return false;
 
+        if (!canMove) return false;
+
+        /*
         if (REGION_LEVEL_GATE[regionId] || REGION_LEVEL_GATE[nextRegionId]) {
             if (regionId > 0 && regionId == nextRegionId) return $gameMap.isValid(x2, y2);
             const diff = nextLevel - myLevel;
@@ -1345,7 +1328,7 @@
             }
 
         }
-
+        */
 
         if (REGION_CONFIG[nextRegionId]?.skip) return SS_isMapPassable.call(this, x, y, d);
 
@@ -1400,6 +1383,7 @@
                 for (let x = 0; x < width; x++) {
                     const regionId = map.regionId(x, y);
                     if (regionId > 0) {
+                        /*
                         const color = `rgba(${regionId * 20 % 256}, 100, 200, 0.5)`;
                         this.bitmap.fillRect(
                             x * this.tileSize,
@@ -1407,9 +1391,10 @@
                             this.tileSize,
                             this.tileSize,
                             color
-                        );
+                        );*/
+
                         this.bitmap.drawText(
-                            regionId,
+                            REGION_CONFIG[regionId]?.level || "",
                             x * this.tileSize,
                             y * this.tileSize,
                             this.tileSize,
@@ -1467,13 +1452,19 @@
         }
     };
 
-    const identifier = "Lilac_ThrowableEvents.js"
 
-    const paramspicker = PluginManager.parameters(identifier);
+    const THROW_PLUGIN_NAME = "Lilac_ThrowableEvents";
+    // check if plugin is installed AND enabled
+    const hasThrowableEvents = PluginManager._scripts.includes(THROW_PLUGIN_NAME);
+
+    // only load parameters if it exists
+    const throwableParams = hasThrowableEvents
+        ? PluginManager.parameters(THROW_PLUGIN_NAME)
+        : {};
 
     const SS_EXT_updateRegionZ = Sprite_Character.prototype.updateRegionZ
     Sprite_Character.prototype.updateRegionZ = function () {
-        if (!paramspicker) return SS_EXT_updateRegionZ.call(this)
+        if (!hasThrowableEvents) return SS_EXT_updateRegionZ.call(this)
         const character = this._character;
         if (!character) return;
         const x = character.x;
