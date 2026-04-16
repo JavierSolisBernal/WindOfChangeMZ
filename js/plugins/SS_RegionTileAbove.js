@@ -1357,11 +1357,13 @@
         this._regionLevel = 0;
         //
         this._invisible = this.event().meta.invisible ?? false
+    
         // Check the note for <level:n>
         const levelMeta = this.event().note.match(/<level:(\d+)>/i);
         if (levelMeta) {
             this._regionLevel = Number(levelMeta[1]);
         }
+        if(this.event().meta.elevator) this._priorityType=1
 
     };
    
