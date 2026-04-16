@@ -1363,8 +1363,12 @@
         if (levelMeta) {
             this._regionLevel = Number(levelMeta[1]);
         }
-        if(this.event().meta.elevator) this._priorityType=1
 
+        const temp_pt=this._priorityType
+        if(this.event().meta.elevator && this._regionLevel>0) 
+            this._priorityType=2 
+        else 
+            this._priorityType=temp_pt
     };
    
 
