@@ -136,8 +136,14 @@
     const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
     const params = PluginManager.parameters(pluginName);
 
-    const DEBUG = true;
+    const DEBUG = { tiles: false, character: false };
     //HELPERS
+
+    //ROUNDTOSIX
+    const clamp = function (n, decimals = 6) {
+        const factor = 10 ** decimals;
+        return Math.round((n + Number.EPSILON) * factor) / factor;
+    }
     //GET DIRECTIONS
     const parseDirectionStruct = (raw) => {
         if (!raw) return null;
@@ -762,10 +768,12 @@
     //STARTING UPPER LAYER 
 
     Spriteset_Map.prototype.createRegionUpperLayer = function () {
-        this._regionUpperlayer = new PIXI.Container();
-        this._regionUpperlayer.sortableChildren = true;
-        this._tilemap.addChild(this._regionUpperlayer);
-        this._regionUpperlayer.z = 3.1;
+        this._regionUpperlayer = this._tilemap
+        //this._regionUpperlayer = new PIXI.Container();
+        //this._regionUpperlayer.name = 'UpperLayer'
+        //this._regionUpperlayer.sortableChildren = true;
+        //this._tilemap.addChild(this._regionUpperlayer);
+        //this._regionUpperlayer.z = 3.1;
         this._regionUpperNeedsSort = false;
         //  UPPER-specific pools & maps
         this._regionUpperPool = [];
@@ -878,17 +886,16 @@
                     else if (rulesPassed) alpha = 0.5;
                     else if (visible) alpha = config.alpha;
                 }
-                const offset = mapY * 0.01;
+                const offset = 0//mapY * 0.000001;
                 container.alpha = alpha;
-
-
                 container.x = (mapX - displayX) * tw;
                 container.y = (mapY - displayY) * th;
                 container.mapX = mapX
                 container.mapY = mapY
 
-                container.z = 3 + (level * 0.01) + offset;
+                container.z = clamp(3 + (level * 0.01) + offset);
                 container.region = region;
+                container.level = level
                 this._regionUpperlayer.addChild(container);
                 this._regionUpperMap[key] = container;
                 this._regionUpperNeedsSort = true;
@@ -1014,10 +1021,21 @@
 
     SS_screenZ = Game_CharacterBase.prototype.screenZ
     Game_CharacterBase.prototype.screenZ = function () {
-        const level = this.regionLevel() * 0.1
-        const offset = 0;
+        const level = (this.regionLevel() ?? 0) * 0.01
+        const offset = 0.001;
+        if (level == 0 && !this instanceof Game_Event) return SS_screenZ.call(this)
+
+        if (this instanceof Game_Event) {
+         
+
+            //if (this.regionLevel() > $gamePlayer.regionLevel()) this._priorityType = 2
+            //else this.setPriorityType(page?.priorityType ?? 1)
+
+        }
+
+
         return (this._priorityType * 2) + 1 + level + offset
-        return (this._priorityType * 2) + 1 + test + offset;
+
     };
 
 
@@ -1261,8 +1279,9 @@
                             color
                         );*/
                         const level = REGION_CONFIG[regionId]?.level ?? 0
+                        const offset = 0;
                         this.bitmap.drawText(
-                            3 + (level * 0.1),
+                            (3 + (level * 0.01) + offset).toFixed(7),
                             // REGION_CONFIG[regionId]?.level || "",
                             x * this.tileSize,
                             y * this.tileSize,
@@ -1287,7 +1306,7 @@
     const SS_Scene_Map_createAllWindows = Scene_Map.prototype.createAllWindows;
     Scene_Map.prototype.createAllWindows = function () {
         SS_Scene_Map_createAllWindows.call(this);
-        if (!DEBUG) return
+        if (!DEBUG.tiles) return
         this._regionOverlay = new RegionOverlay();
         this.addChild(this._regionOverlay);
     };
@@ -1296,7 +1315,7 @@
     const _Sprite_Character_update = Sprite_Character.prototype.update;
     Sprite_Character.prototype.update = function () {
         _Sprite_Character_update.call(this);
-        if (DEBUG) this.updatePartyLabel();
+        if (DEBUG.character) this.updatePartyLabel();
     };
 
     Sprite_Character.prototype.updatePartyLabel = function () {
@@ -1306,10 +1325,16 @@
                 this._partyLabel.anchor.x = 0.5;
                 this._partyLabel.anchor.y = 1;
                 this.addChild(this._partyLabel);
+            } else if (this._character instanceof Game_Event) {
+                this._partyLabel = new Sprite(new Bitmap(48, 24));
+                this._partyLabel.anchor.x = 0.5;
+                this._partyLabel.anchor.y = 1;
+                this.addChild(this._partyLabel);
             }
         }
 
         if (this._partyLabel) {
+
             //const count = this._character.regionLevel();
             const count = this.z
             const bmp = this._partyLabel.bitmap;
@@ -1339,6 +1364,7 @@
         }
 
     };
+   
 
     //CHECK IF THE EVENT IS ON THE SAME MAP
     const SS_startMapEvent = Game_Player.prototype.startMapEvent;
@@ -1381,43 +1407,6 @@
         }
     };
 
-
-    return false
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     const THROW_PLUGIN_NAME = "Lilac_ThrowableEvents";
     // check if plugin is installed AND enabled
     const hasThrowableEvents = PluginManager._scripts.includes(THROW_PLUGIN_NAME);
@@ -1426,43 +1415,6 @@
     const throwableParams = hasThrowableEvents
         ? PluginManager.parameters(THROW_PLUGIN_NAME)
         : {};
-
-    const SS_EXT_updateRegionZ = Sprite_Character.prototype.updateRegionZ
-    Sprite_Character.prototype.updateRegionZ = function () {
-        if (!hasThrowableEvents) return SS_EXT_updateRegionZ.call(this)
-        const character = this._character;
-        if (!character) return;
-        const x = character.x;
-        const y = character.y;
-        // Target Z
-        let targetZ;
-        let under = 2.9
-        let top = 3.2
-        let offset = y * 0.0001;
-        const regionId = $gameMap.regionId(x, y);
-        const regionLevel = getRegionLevel(regionId);
-        const charLevel = character.regionLevel();
-        const charPriority = character._priorityType ? character._priorityType : 1;
-
-        if (character instanceof Game_Event && charPriority > 1 && character.eventId() === $gamePlayer._carryId) { offset += 0.01; character.setRegionLevel($gamePlayer.regionLevel()) }
-        if (character instanceof Game_Event && charPriority > 1 && character.eventId() !== $gamePlayer._carryId) offset += 0.02
-
-        if (charLevel < regionLevel) {
-            targetZ = under + offset; // below
-        } else {
-            targetZ = top + offset; // above
-        }
-        // Initialize smooth value
-        if (this._zSmooth === undefined) {
-            this._zSmooth = targetZ;
-        }
-
-        // Smooth interpolation (tweak 0.25 for speed)
-        this._zSmooth += (targetZ - this._zSmooth) * 0.25;
-
-        this.z = this._zSmooth;
-
-    };
 
 
 
@@ -1515,6 +1467,17 @@
 
     }
 
+
+
+    Tilemap.prototype._compareChildOrder = function (a, b) {
+        if (a.z !== b.z) {
+            return a.z - b.z;
+        } else if (a.y !== b.y) {
+            return a.y - b.y;
+        } else {
+            return a.spriteId - b.spriteId;
+        }
+    };
 
 
 })();
