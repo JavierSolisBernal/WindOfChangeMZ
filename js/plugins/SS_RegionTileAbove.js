@@ -1,6 +1,6 @@
 /*:
 * @target MZ
-* @plugindesc Region tiles rendered above characters (optimized + autotiles + smart caching)
+* @plugindesc Region Passability extreme
 * @author Squall_seawave 
  
 * @param Rules
@@ -136,7 +136,7 @@
     const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
     const params = PluginManager.parameters(pluginName);
 
-    const DEBUG = { tiles: false, character: false };
+    const DEBUG = { tiles: false, character: true };
     //HELPERS
 
     //ROUNDTOSIX
@@ -1025,17 +1025,10 @@
         const offset = 0.001;
         if (level == 0 && !this instanceof Game_Event) return SS_screenZ.call(this)
 
-        if (this instanceof Game_Event) {
-         
-
-            //if (this.regionLevel() > $gamePlayer.regionLevel()) this._priorityType = 2
-            //else this.setPriorityType(page?.priorityType ?? 1)
-
-        }
-
-
+        if (this instanceof Game_Event) {        
+            if(this._elevator) return 3 + level
+         }
         return (this._priorityType * 2) + 1 + level + offset
-
     };
 
 
@@ -1080,6 +1073,7 @@
 
 
     Game_CharacterBase.prototype._handleRegionChange = function (region) {
+        if (this._elevator) return
         if (!REGION_LEVEL_GATE[region] && REGION_CONFIG[region]) return;
         const level = REGION_LEVEL_GATE[region]?.level ?? 0
         this.setRegionLevel(level);
@@ -1245,6 +1239,80 @@
     };
 
 
+   
+
+
+    // Extend Game_Event to read meta for region level
+    const SS_Game_Event_initialize = Game_Event.prototype.initialize;
+    Game_Event.prototype.initialize = function (mapId, eventId) {
+        SS_Game_Event_initialize.call(this, mapId, eventId);
+
+        // Default level if not specified
+        this._regionLevel = 0;
+        //
+        this._invisible = this.event().meta.invisible ?? false
+        this._elevator = this.event().meta.elevator ?? false
+
+        // Check the note for <level:n>
+        const levelMeta = this.event().note.match(/<level:(\d+)>/i);
+        if (levelMeta) {
+            this._regionLevel = Number(levelMeta[1]);
+        }
+
+        const temp_pt = this._priorityType
+        if (this._elevator) {
+            this._priorityType = 0
+        }
+        else {
+            this._priorityType = temp_pt
+        }
+    };
+
+     
+
+
+    //CHECK IF THE EVENT IS ON THE SAME MAP
+    const SS_startMapEvent = Game_Player.prototype.startMapEvent;
+    Game_Player.prototype.startMapEvent = function (x, y, triggers, normal) {
+        if ($gameMap.isEventRunning()) return;
+        const playerLevel = this.regionLevel();
+        // Save the original eventsXy
+        const originalEventsXy = $gameMap.eventsXy;
+        // Override eventsXy temporarily to filter by level
+        $gameMap.eventsXy = function (x, y) {
+            return originalEventsXy.call(this, x, y).filter(event =>
+                event.regionLevel() === playerLevel
+            );
+        };
+
+        // Call the original function — now it only sees events on the same level
+        SS_startMapEvent.call(this, x, y, triggers, normal);
+
+        // Restore the original function
+        $gameMap.eventsXy = originalEventsXy;
+    };
+
+
+    const SS_Sprite_Character_update = Sprite_Character.prototype.update;
+    Sprite_Character.prototype.update = function () {
+        SS_Sprite_Character_update.call(this);
+        if (DEBUG.character) this.updatePartyLabel();
+        this.updateRegionAlpha();
+    };
+
+    Sprite_Character.prototype.updateRegionAlpha = function () {
+        if (!this._character || !(this._character instanceof Game_Event)) return;
+        const event = this._character;
+        // Get global cached result (fast, already optimized)
+        const rulesPassed = $gameSystem.regionRulesPassed();
+        if (event._invisible) {
+            this.alpha = rulesPassed ? 0.75 : 0;
+        }
+    };
+
+
+
+
 
 
 
@@ -1311,13 +1379,7 @@
         this.addChild(this._regionOverlay);
     };
 
-
-    const _Sprite_Character_update = Sprite_Character.prototype.update;
-    Sprite_Character.prototype.update = function () {
-        _Sprite_Character_update.call(this);
-        if (DEBUG.character) this.updatePartyLabel();
-    };
-
+    //DEBUG CHARACTER
     Sprite_Character.prototype.updatePartyLabel = function () {
         if (!this._partyLabel) {
             if (this._character === $gamePlayer) {
@@ -1335,8 +1397,8 @@
 
         if (this._partyLabel) {
 
-            //const count = this._character.regionLevel();
-            const count = this.z
+            const count = this._character.regionLevel();
+            //const count = this.z
             const bmp = this._partyLabel.bitmap;
 
             bmp.clear();
@@ -1348,76 +1410,11 @@
     };
 
 
-    // Extend Game_Event to read meta for region level
-    const SS_Game_Event_initialize = Game_Event.prototype.initialize;
-    Game_Event.prototype.initialize = function (mapId, eventId) {
-        SS_Game_Event_initialize.call(this, mapId, eventId);
-
-        // Default level if not specified
-        this._regionLevel = 0;
-        //
-        this._invisible = this.event().meta.invisible ?? false
-    
-        // Check the note for <level:n>
-        const levelMeta = this.event().note.match(/<level:(\d+)>/i);
-        if (levelMeta) {
-            this._regionLevel = Number(levelMeta[1]);
-        }
-
-        const temp_pt=this._priorityType
-        if(this.event().meta.elevator && this._regionLevel>0) 
-            this._priorityType=2 
-        else 
-            this._priorityType=temp_pt
-    };
-   
-
-    //CHECK IF THE EVENT IS ON THE SAME MAP
-    const SS_startMapEvent = Game_Player.prototype.startMapEvent;
-    Game_Player.prototype.startMapEvent = function (x, y, triggers, normal) {
-        if ($gameMap.isEventRunning()) return;
-        const playerLevel = this.regionLevel();
-        // Save the original eventsXy
-        const originalEventsXy = $gameMap.eventsXy;
-        // Override eventsXy temporarily to filter by level
-        $gameMap.eventsXy = function (x, y) {
-            return originalEventsXy.call(this, x, y).filter(event =>
-                event.regionLevel() === playerLevel
-            );
-        };
-
-        // Call the original function — now it only sees events on the same level
-        SS_startMapEvent.call(this, x, y, triggers, normal);
-
-        // Restore the original function
-        $gameMap.eventsXy = originalEventsXy;
-    };
-
-
-    const SS_Sprite_Character_update = Sprite_Character.prototype.update;
-    Sprite_Character.prototype.update = function () {
-        SS_Sprite_Character_update.call(this);
-        this.updateRegionAlpha();
-    };
-
-    Sprite_Character.prototype.updateRegionAlpha = function () {
-        if (!this._character || !(this._character instanceof Game_Event)) return;
-
-        const event = this._character;
-
-        // Get global cached result (fast, already optimized)
-        const rulesPassed = $gameSystem.regionRulesPassed();
-
-        if (event._invisible) {
-            this.alpha = rulesPassed ? 0.75 : 0;
-        }
-    };
-
     const THROW_PLUGIN_NAME = "Lilac_ThrowableEvents";
     // check if plugin is installed AND enabled
     const hasThrowableEvents = PluginManager._scripts.includes(THROW_PLUGIN_NAME);
 
-    // only load parameters if it exists
+    // only load parameters if it exists TO EXTEND EVEN MORE THE THROWN PLUGIN
     const throwableParams = hasThrowableEvents
         ? PluginManager.parameters(THROW_PLUGIN_NAME)
         : {};
@@ -1458,8 +1455,7 @@
         var point = new Point(x, y);
         var signX = Math.sign(x);
         var signY = Math.sign(y);
-        var d = this.direction();
-
+ 
         if (Math.abs(x) > 0) {
             const i = Math.abs(x) - 1
             point.set(this.x + i * signX, this.y + y - 1);
@@ -1475,15 +1471,6 @@
 
 
 
-    Tilemap.prototype._compareChildOrder = function (a, b) {
-        if (a.z !== b.z) {
-            return a.z - b.z;
-        } else if (a.y !== b.y) {
-            return a.y - b.y;
-        } else {
-            return a.spriteId - b.spriteId;
-        }
-    };
-
+ 
 
 })();
