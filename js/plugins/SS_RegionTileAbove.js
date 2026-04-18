@@ -136,7 +136,7 @@
     const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
     const params = PluginManager.parameters(pluginName);
 
-    const DEBUG = { tiles: false, character: true };
+    const DEBUG = { tiles: false, character: false };
     //HELPERS
 
     //ROUNDTOSIX
