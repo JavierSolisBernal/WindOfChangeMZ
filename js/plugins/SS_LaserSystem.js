@@ -142,7 +142,7 @@
         const tw = $gameMap.tileWidth();
         const th = $gameMap.tileHeight();
 
-        console.log(laser)
+       
         // DOT DEBUG DRAW
         for (const p of laser.path) {
             const size = 6;
@@ -170,8 +170,8 @@
     Spriteset_Map.prototype.createLaserLayer = function () {
         // IMPORTANT: use Sprite container, not raw PIXI.Container
         this._laserLayer = new Sprite();
-
-        this.addChild(this._laserLayer);
+        
+        this._tilemap.addChild(this._laserLayer);
 
         this._laserSprites = [];
     };
@@ -182,9 +182,10 @@
         this.updateLasers();
     };
 
+    
+
     Spriteset_Map.prototype.updateLasers = function () {
         const events = $gameMap.events();
-
         for (const ev of events) {
             if (!ev._lasers) continue;
 
@@ -203,6 +204,9 @@
                     laser._sprite = sprite;
  
                     this._laserLayer.addChild(sprite);
+                    const level=ev._regionlevel?? 0
+                    const offset=0
+                    this._laserLayer.z=(ev._priorityType * 2) + 1 + level + offset
                     this._laserSprites.push(sprite);
                 }
             }
