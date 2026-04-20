@@ -136,7 +136,7 @@
     const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
     const params = PluginManager.parameters(pluginName);
 
-    const DEBUG = { tiles: false, character: false };
+    const DEBUG = { tiles: false, character: true };
     //HELPERS
 
     //ROUNDTOSIX
@@ -1074,6 +1074,7 @@
 
     Game_CharacterBase.prototype._handleRegionChange = function (region) {
         if (this._elevator) return
+        if(!REGION_CONFIG[region]) return
         if (!REGION_LEVEL_GATE[region] && REGION_CONFIG[region]) return;
         const level = REGION_LEVEL_GATE[region]?.level ?? 0
         this.setRegionLevel(level);
@@ -1255,6 +1256,7 @@
 
         // Check the note for <level:n>
         const levelMeta = this.event().note.match(/<level:(\d+)>/i);
+       
         if (levelMeta) {
             this._regionLevel = Number(levelMeta[1]);
         }
@@ -1266,6 +1268,7 @@
         else {
             this._priorityType = temp_pt
         }
+
     };
 
      
