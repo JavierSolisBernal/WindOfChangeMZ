@@ -1,5 +1,10 @@
 (() => {
 
+
+    //VARIABLES 
+
+
+
     //HELPERS
     //TRUNCATE
     const clamp = function (n, decimals = 6) {
@@ -19,6 +24,36 @@
         return canHorz && canVert;
     }
 
+    const isBlockedByMirror = function (laserDir, mirrorDir) {
+        const i = DIR_CIRCLE.indexOf(laserDir);
+        if (i === -1) return false; // safety guard
+        const blocked = [
+            DIR_CIRCLE[(i - 1 + 8) % 8],
+            DIR_CIRCLE[i],
+            DIR_CIRCLE[(i + 1) % 8]
+        ];
+        return blocked.includes(mirrorDir);
+    }
+
+    const reflectDirection = function (laserDir, mirrorDir) {
+        const i = DIR_CIRCLE.indexOf(laserDir);
+        if (i === -1) return null;
+
+        const blocked = [
+            DIR_CIRCLE[(i - 1 + 8) % 8],
+            DIR_CIRCLE[i],
+            DIR_CIRCLE[(i + 1) % 8]
+        ];
+
+        if (blocked.includes(mirrorDir)) {
+            return null; // blocked
+        }
+
+        // SIMPLE RULE: redirect to mirror direction
+        return mirrorDir;
+    };
+
+
     // =====================================================
     // DIRECTION TABLE
     // =====================================================
@@ -32,6 +67,8 @@
         8: [0, -1],
         9: [1, -1]
     };
+
+    const DIR_CIRCLE = [1, 2, 3, 6, 9, 8, 7, 4]; // clockwise
 
     // =====================================================
     // LASER (LOGIC ONLY)
@@ -58,63 +95,10 @@
             }
         }
 
+
+
+
         refreshPath2(event) {
-            if (!this.turnedOn) {
-                this.path = [];
-                this.needRefresh = false;
-                this.needRedraw = true;
-                return;
-            }
-
-            const [dx, dy] = DIR[this.startDirection];
-
-            let x = event.x;
-            let y = event.y;
-
-            const path = [];
-            let d = this.startDirection
-            const maxSteps = Math.max($gameMap.width() * 2, $gameMap.height() * 2);
-            path.push({ x, y, origin: true });
-            for (let step = 0; step < maxSteps; step++) {
-                const prevX = x;
-                const prevY = y;
-
-                x += dx;
-                y += dy;
-
-                const nextX = x + dx;
-                const nextY = y + dy;
-
-                if (!$gameMap.isValid(x, y)) break;
-
-                const eventsAtTile = $gameMap.eventsXyNt(x, y);
-                const myLevel = event._regionLevel ?? 0;
-                // Check if any event at the same level is blocking
-                const sameLevelBlocking = eventsAtTile.some(e => {
-                    const level = e._regionLevel ?? 0;
-                    return e.isNormalPriority() && level === myLevel;
-                }
-                );
-
-                if (!$gameMap.isPassable(x, y, d)) {
-                    path.push({ x, y, end: true, type: "wall" });
-                    break;
-                }
-                // If no same-level blocking event exists and the map tile itself is passable, allow movement
-                if (sameLevelBlocking) {
-                    path.push({ x, y, end: true, type: "event" });
-                    break;
-                }
-                path.push({ x, y });
-            }
-            console.log(path)
-            this.path = path;
-            this.needRefresh = false;
-            this.needRedraw = true;
-        }
-
-
-        refreshPath(event) {
             if (!this.turnedOn) {
                 this.path = [];
                 this.needRefresh = false;
@@ -135,7 +119,7 @@
             for (let step = 0; step < maxSteps; step++) {
 
                 const dir = this.startDirection;
-                 // diagonal detection
+                // diagonal detection
                 const isDiagonal = dx !== 0 && dy !== 0;
 
                 // compute next tile BEFORE committing movement
@@ -151,8 +135,6 @@
                     const level = e._regionLevel ?? 0;
                     return e.isNormalPriority() && level === myLevel;
                 });
-
-
 
                 // WALL CHECK
                 let canMove;
@@ -188,6 +170,208 @@
             this.needRedraw = true;
         }
 
+
+        refreshPath(event) {
+            if (!this.turnedOn) {
+                this.path = [];
+                this.needRefresh = false;
+                this.needRedraw = true;
+                return;
+            }
+
+            let dir = this.startDirection;
+            let [dx, dy] = DIR[dir];
+
+            let x = event.x;
+            let y = event.y;
+
+            const path = [];
+            const myLevel = event._regionLevel ?? 0;
+
+            const maxSteps = Math.max($gameMap.width(), $gameMap.height()) * 2;
+
+            path.push({ x, y, origin: true });
+            /*
+            for (let step = 0; step < maxSteps; step++) {
+
+                let nextX = x + dx;
+                let nextY = y + dy;
+
+                if (!$gameMap.isValid(nextX, nextY)) break;
+
+                const eventsAtTile = $gameMap.eventsXyNt(nextX, nextY);
+                
+
+                const sameLevelBlocking = eventsAtTile.some(e => {
+                    const level = e._regionLevel ?? 0;
+                    return e.isNormalPriority() && level === myLevel;
+                });
+
+                // =========================
+                // MIRROR CHECK (FIRST)
+                // =========================
+                let blockedByMirror = false;
+                let reflected = false;
+
+                for (const e of eventsAtTile) {
+                    console.log(e)
+                    if (!e._md) continue;
+
+                    const resultDir = reflectDirection(dir, e._md);
+
+                    // BLOCKED
+                    if (resultDir == null) {
+                        path.push({
+                            x: nextX,
+                            y: nextY,
+                            end: true,
+                            type: "mirror_block"
+                        });
+
+                        this.path = path;
+                        return;
+                    }
+
+                    // REFLECT
+                    dir = resultDir;
+                    [dx, dy] = DIR[dir];
+
+                    reflected = true;
+
+                    path.push({
+                        x: nextX,
+                        y: nextY,
+                        type: "mirror_reflect"
+                    });
+
+                    break;
+                }
+
+                // IMPORTANT: if reflected, do NOT advance
+                if (reflected) {
+                    continue;
+                }
+
+                // =========================
+                // WALL CHECK
+                // =========================
+                let canMove;
+
+                const isDiagonal = dx !== 0 && dy !== 0;
+
+                if (isDiagonal) {
+                    canMove = canMoveDiagonal(x, y, dx, dy);
+                } else {
+                    canMove = $gameMap.isPassable(x, y, dir);
+                }
+
+                if (!canMove) {
+                    path.push({ x: nextX, y: nextY, end: true, type: "wall" });
+                    break;
+                }
+
+                // =========================
+                // EVENT BLOCK CHECK
+                // =========================
+                if (sameLevelBlocking) {
+                    path.push({ x: nextX, y: nextY, end: true, type: "event" });
+                    break;
+                }
+
+                // =========================
+                // MOVE FORWARD
+                // =========================
+                x = nextX;
+                y = nextY;
+
+                path.push({ x, y, type: "path" });
+            }
+            */
+
+            for (let step = 0; step < maxSteps; step++) {
+
+                // 1. compute next tile
+                const nextX = x + dx;
+                const nextY = y + dy;
+
+                if (!$gameMap.isValid(nextX, nextY)) break;
+
+                // 2. MOVE FIRST (enter tile)
+                x = nextX;
+                y = nextY;
+
+                path.push({ x, y, type: "path" });
+
+                const eventsAtTile = $gameMap.eventsXyNt(x, y);
+
+                const sameLevelBlocking = eventsAtTile.some(e => {
+                    const level = e._regionLevel ?? 0;
+                    return e.isNormalPriority() && level === myLevel;
+                });
+
+                // =========================
+                // MIRROR CHECK (NOW CORRECT)
+                // =========================
+                let reflected = false;
+
+                for (const e of eventsAtTile) {
+                    if (e._md == null) continue;
+
+                    const resultDir = reflectDirection(dir, e._md);
+
+                    // BLOCK
+                    if (resultDir == null) {
+                        path.push({ x, y, end: true, type: "mirror_block" });
+                        this.path = path;
+                        return;
+                    }
+
+                    // REFLECT (happens ON tile)
+                    dir = resultDir;
+                    [dx, dy] = DIR[dir];
+
+                    path.push({ x, y, type: "mirror_reflect" });
+
+                    reflected = true;
+                    break;
+                }
+
+                if (reflected) {
+                    continue;
+                }
+
+               // =========================
+                // WALL CHECK
+                // =========================
+                let canMove;
+
+                const isDiagonal = dx !== 0 && dy !== 0;
+
+                if (isDiagonal) {
+                    canMove = canMoveDiagonal(x, y, dx, dy);
+                } else {
+                    canMove = $gameMap.isPassable(x, y, dir);
+                }
+
+                if (!canMove) {
+                    path.pop()
+                    path.push({ x: nextX, y: nextY, end: true, type: "wall" });
+                    break;
+                }
+
+                if (sameLevelBlocking) {
+                    path.pop()
+                    path.push({ x, y, end: true, type: "event" });
+                    break;
+                }
+            }
+            console.log(path)
+            this.path = path;
+            this.needRefresh = false;
+            this.needRedraw = true;
+        }
+
+
     }
 
     // =====================================================
@@ -198,9 +382,51 @@
         _Game_Event_init.call(this, mapId, eventId);
         this._lasers = {};
 
+
         // TEST LASER
         if (this.event().id == 1)
-            this._lasers[6] = new Laser(6, true);
+            this._lasers[6] = new Laser(3, true);
+    };
+
+
+    const SS_Game_Event_setupPage = Game_Event.prototype.setupPage;
+    Game_Event.prototype.setupPage = function () {
+        SS_Game_Event_setupPage.call(this);
+
+        const meta = this.event().meta;
+
+        const key = [this._mapId, this._eventId, "M"];
+
+        const saved = $gameSelfSwitches.value(key);
+
+        if (saved) {
+            this._md = Number(saved);
+            return;
+        }
+
+
+        if (!meta?.mirror) return;
+
+
+        // <mirror:x>
+        if (meta.mirror !== "") {
+            this._md = Number(meta.mirror);
+            if (this._md === 5) this._md = this.direction();
+        }
+        // <mirror> fallback
+        else {
+            this._md = this.direction();
+        }
+
+        $gameSelfSwitches.setValue(key, this._md);
+    };
+
+    Game_Event.prototype.setMirrorDirection = function (dir) {
+        const meta = this.event().meta;
+        if (!meta.mirror) return
+        const key = [this._mapId, this._eventId, "M"];
+        this._md = dir;
+        $gameSelfSwitches.setValue(key, dir);
     };
 
     // =====================================================
@@ -336,7 +562,6 @@
 
                     //this._laserLayer.z = clamp(charSprite.z - offset)
                     sprite.z = clamp(charSprite.z - offset)
-                    console.log(sprite.z)
                     //this._laserLayer.z=(ev._priorityType * 2) + 1 + regionlevel + offset
                     this._laserSprites.push(sprite);
                 }
