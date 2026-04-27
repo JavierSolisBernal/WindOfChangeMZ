@@ -1,4 +1,39 @@
+/*:
+* @target MZ
+* @plugindesc Laser System
+* @author Squall_seawave 
+ 
+* @param Tunnels
+* @text Tunnels
+* @desc Tunnels
+* @type number[]
+*
+*/
+
 (() => {
+    const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
+    const params = PluginManager.parameters(pluginName);
+
+    const PLUGINTILEABOVE = "SS_RegionTileAbove.js"
+    let TUNNELS = [];
+
+
+
+    // check if plugin is installed AND enabled
+    const hastileabove = PluginManager._scripts.includes(PLUGINTILEABOVE);
+
+    // only load parameters if it exists TO EXTEND EVEN MORE THE THROWN PLUGIN
+    const params_ext = hastileabove
+        ? PluginManager.parameters(PLUGINTILEABOVE)
+        : null;
+    if (params_ext) {
+
+    }
+    else {
+        const tun = JSON.parse(params.Tunnels).map(e => parseInt(e))
+
+        TUNNELS = TUNNELS.concat(tun)
+    }
 
 
     //VARIABLES 
@@ -18,22 +53,17 @@
         const horzDir = dx > 0 ? 6 : 4;
         const vertDir = dy > 0 ? 2 : 8;
 
+        console.log(horzDir, vertDir)
+
         const canHorz = $gameMap.isPassable(x, y, horzDir);
+
         const canVert = $gameMap.isPassable(x, y, vertDir);
+
+        if ($gameMap.isTunnel(x, y)) return true
 
         return canHorz && canVert;
     }
 
-    const isBlockedByMirror = function (laserDir, mirrorDir) {
-        const i = DIR_CIRCLE.indexOf(laserDir);
-        if (i === -1) return false; // safety guard
-        const blocked = [
-            DIR_CIRCLE[(i - 1 + 8) % 8],
-            DIR_CIRCLE[i],
-            DIR_CIRCLE[(i + 1) % 8]
-        ];
-        return blocked.includes(mirrorDir);
-    }
 
     const reflectDirection = function (laserDir, mirrorDir) {
         const i = DIR_CIRCLE.indexOf(laserDir);
@@ -98,77 +128,7 @@
 
 
 
-        refreshPath2(event) {
-            if (!this.turnedOn) {
-                this.path = [];
-                this.needRefresh = false;
-                this.needRedraw = true;
-                return;
-            }
 
-            const [dx, dy] = DIR[this.startDirection];
-
-            let x = event.x;
-            let y = event.y;
-
-            const path = [];
-            const myLevel = event._regionLevel ?? 0;
-
-            const maxSteps = Math.max($gameMap.width(), $gameMap.height()) * 2;
-            path.push({ x, y, origin: true });
-            for (let step = 0; step < maxSteps; step++) {
-
-                const dir = this.startDirection;
-                // diagonal detection
-                const isDiagonal = dx !== 0 && dy !== 0;
-
-                // compute next tile BEFORE committing movement
-                const nextX = x + dx;
-                const nextY = y + dy;
-
-                // stop if out of bounds
-                if (!$gameMap.isValid(nextX, nextY)) break;
-
-                const eventsAtTile = $gameMap.eventsXyNt(nextX, nextY);
-
-                const sameLevelBlocking = eventsAtTile.some(e => {
-                    const level = e._regionLevel ?? 0;
-                    return e.isNormalPriority() && level === myLevel;
-                });
-
-                // WALL CHECK
-                let canMove;
-
-                if (isDiagonal) {
-                    canMove = canMoveDiagonal(nextX, nextY, dx, dy);
-                } else {
-                    const straightDir = dir;
-                    canMove = $gameMap.isPassable(nextX, nextY, straightDir);
-                }
-
-                // wall check (map collision)
-                if (!canMove) {
-                    path.push({ x: nextX, y: nextY, end: true, type: "wall" });
-                    break;
-                }
-
-                // event blocking check
-                if (sameLevelBlocking) {
-                    path.push({ x: nextX, y: nextY, end: true, type: "event" });
-                    break;
-                }
-
-                // advance position
-                x = nextX;
-                y = nextY;
-
-                path.push({ x, y, type: "path" });
-            }
-            console.log(path)
-            this.path = path;
-            this.needRefresh = false;
-            this.needRedraw = true;
-        }
 
 
         refreshPath(event) {
@@ -191,102 +151,6 @@
             const maxSteps = Math.max($gameMap.width(), $gameMap.height()) * 2;
 
             path.push({ x, y, origin: true });
-            /*
-            for (let step = 0; step < maxSteps; step++) {
-
-                let nextX = x + dx;
-                let nextY = y + dy;
-
-                if (!$gameMap.isValid(nextX, nextY)) break;
-
-                const eventsAtTile = $gameMap.eventsXyNt(nextX, nextY);
-                
-
-                const sameLevelBlocking = eventsAtTile.some(e => {
-                    const level = e._regionLevel ?? 0;
-                    return e.isNormalPriority() && level === myLevel;
-                });
-
-                // =========================
-                // MIRROR CHECK (FIRST)
-                // =========================
-                let blockedByMirror = false;
-                let reflected = false;
-
-                for (const e of eventsAtTile) {
-                    console.log(e)
-                    if (!e._md) continue;
-
-                    const resultDir = reflectDirection(dir, e._md);
-
-                    // BLOCKED
-                    if (resultDir == null) {
-                        path.push({
-                            x: nextX,
-                            y: nextY,
-                            end: true,
-                            type: "mirror_block"
-                        });
-
-                        this.path = path;
-                        return;
-                    }
-
-                    // REFLECT
-                    dir = resultDir;
-                    [dx, dy] = DIR[dir];
-
-                    reflected = true;
-
-                    path.push({
-                        x: nextX,
-                        y: nextY,
-                        type: "mirror_reflect"
-                    });
-
-                    break;
-                }
-
-                // IMPORTANT: if reflected, do NOT advance
-                if (reflected) {
-                    continue;
-                }
-
-                // =========================
-                // WALL CHECK
-                // =========================
-                let canMove;
-
-                const isDiagonal = dx !== 0 && dy !== 0;
-
-                if (isDiagonal) {
-                    canMove = canMoveDiagonal(x, y, dx, dy);
-                } else {
-                    canMove = $gameMap.isPassable(x, y, dir);
-                }
-
-                if (!canMove) {
-                    path.push({ x: nextX, y: nextY, end: true, type: "wall" });
-                    break;
-                }
-
-                // =========================
-                // EVENT BLOCK CHECK
-                // =========================
-                if (sameLevelBlocking) {
-                    path.push({ x: nextX, y: nextY, end: true, type: "event" });
-                    break;
-                }
-
-                // =========================
-                // MOVE FORWARD
-                // =========================
-                x = nextX;
-                y = nextY;
-
-                path.push({ x, y, type: "path" });
-            }
-            */
 
             for (let step = 0; step < maxSteps; step++) {
 
@@ -340,7 +204,7 @@
                     continue;
                 }
 
-               // =========================
+                // =========================
                 // WALL CHECK
                 // =========================
                 let canMove;
@@ -491,6 +355,8 @@
 
         // DOT DEBUG DRAW
         for (const p of laser.path) {
+            const isTunnel = $gameMap.isTunnel(p.x, p.y);
+            if (isTunnel) continue;
             const size = 6;
 
             this.bitmap.fillRect(
@@ -503,6 +369,109 @@
         }
     };
 
+
+    Sprite_Laser.prototype.redraw = function () {
+        const laser = this._laser;
+
+        this.bitmap.clear();
+        if (!laser.turnedOn) return;
+
+        const tw = $gameMap.tileWidth();
+        const th = $gameMap.tileHeight();
+
+        const ctx = this.bitmap.context;
+        ctx.save();
+
+        // --------------------------------------------------
+        // 1. BUILD POINTS (with tunnel BREAKS, not skips)
+        // --------------------------------------------------
+        const points = [];
+
+        for (const p of laser.path) {
+
+            if ($gameMap.isTunnel(p.x, p.y)) {
+                points.push(null);
+                continue;
+            }
+
+            points.push({
+                x: p.x * tw + tw / 2,
+                y: p.y * th + th / 2,
+                color: p.color,
+                type: p.type
+            });
+        }
+
+        if (points.length < 2) {
+            ctx.restore();
+            return;
+        }
+
+        // --------------------------------------------------
+        // 2. FIX WALL ENDPOINT (stop at tile edge)
+        // --------------------------------------------------
+        const last = points[points.length - 1];
+
+        if (last && last.type === "wall") {
+            last.x -= tw/2
+            last.y -= th/2
+        }
+
+        // --------------------------------------------------
+        // 3. DRAW SEGMENT FUNCTION
+        // --------------------------------------------------
+        const drawPath = (width, alpha, colorOverride = null) => {
+            ctx.lineWidth = width;
+            ctx.globalAlpha = alpha;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+
+            for (let i = 1; i < points.length; i++) {
+                const a = points[i - 1];
+                const b = points[i];
+                const c = points[i+1]; 
+
+                
+                if(c===null && !colorOverride ) {
+                    b.x+=tw/4, 
+                    b.y+=th/4
+                }
+
+                if(a===null && !colorOverride ) {
+                    b.x-=tw/4, 
+                    b.y-=th/4
+                }
+
+
+                if (!a || !b) continue;
+                
+                let defaultcolor
+                defaultcolor="#ff0000"
+                defaultcolor="#ff00ff"
+                ctx.strokeStyle = colorOverride || (b.color || defaultcolor);
+
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.stroke();
+            }
+        };
+
+        // --------------------------------------------------
+        // 4. LAYERS
+        // --------------------------------------------------
+
+        // 🔵 glow
+        drawPath(10, 0.15);
+
+        // 🟣 main beam
+        drawPath(4, 1.0);
+
+        // ⚪ core
+        drawPath(2, 1.0, "#ffffff");
+
+        ctx.restore();
+    };
     // =====================================================
     // SPRITESET MAP INTEGRATION
     // =====================================================
@@ -568,5 +537,11 @@
             }
         }
     };
+
+
+    Game_Map.prototype.isTunnel = function (x, y) {
+        const SAFE_TUNNELS = Array.isArray(TUNNELS) ? TUNNELS : [];
+        return SAFE_TUNNELS.includes(this.regionId(x, y));
+    }
 
 })();
