@@ -293,6 +293,40 @@
         $gameSelfSwitches.setValue(key, dir);
     };
 
+    Game_Map.prototype.isTunnel = function (x, y) {
+        const SAFE_TUNNELS = Array.isArray(TUNNELS) ? TUNNELS : [];
+        return SAFE_TUNNELS.includes(this.regionId(x, y));
+    }
+
+
+    //STARTING LASER LAYER 
+
+    Spriteset_Map.prototype.createLaserLayer = function () {
+        this._regionUpperlayer = this._tilemap
+        this._LaserNeedsSort = false;
+        //  UPPER-specific pools & maps
+        this._regionUpperPool = [];
+        this._regionUpperMap = {};
+        //  UPPER cache
+        this._lastUpperStartX = -1;
+        this._lastUpperStartY = -1;
+        //  UPPER animation (if you need it later)
+        this._upperAnimFrame = 0;
+    };
+
+    //CREATE LASER CONTAINERS
+    Spriteset_Map.prototype._buildLaserContainer = function (event_id, mapX, mapY) {
+        let container = this._regionUpperPool.pop();
+        if (!container) container = new PIXI.Container();
+        container.removeChildren();
+        container._a1 = null;
+        const tw = $gameMap.tileWidth();
+        const th = $gameMap.tileHeight();
+        return container;
+    };
+
+
+    /* to remake
     // =====================================================
     // SPRITE LASER (RENDERING)
     // =====================================================
@@ -538,10 +572,6 @@
         }
     };
 
-
-    Game_Map.prototype.isTunnel = function (x, y) {
-        const SAFE_TUNNELS = Array.isArray(TUNNELS) ? TUNNELS : [];
-        return SAFE_TUNNELS.includes(this.regionId(x, y));
-    }
+*/
 
 })();
