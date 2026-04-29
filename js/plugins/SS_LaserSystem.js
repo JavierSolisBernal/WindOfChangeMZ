@@ -16,7 +16,7 @@
 
     const PLUGINTILEABOVE = "SS_RegionTileAbove"
     let TUNNELS = [];
-    const COLORS = { orange: "#FFA500", green:"#00AA00" }
+    const COLORS = { orange: "#FFA500", green: "#00AA00" }
 
 
     const REGION_CONFIG = {};
@@ -118,16 +118,16 @@
     };
 
     //DIAGONALLY PASSABILITY
-    const canMoveDiagonal = function (x, y, dx, dy) {
+    const canMoveDiagonal = function (x, y, dx, dy, event) {
         // horizontal + vertical checks separately
         const horzDir = dx > 0 ? 6 : 4;
         const vertDir = dy > 0 ? 2 : 8;
 
 
 
-        const canHorz = $gameMap.isPassable(x, y, horzDir);
+        const canHorz = event.isLaserPassable(x, y, horzDir);
 
-        const canVert = $gameMap.isPassable(x, y, vertDir);
+        const canVert = event.isLaserPassable(x, y, vertDir);
 
 
         if ($gameMap.isTunnel(x, y)) return true
@@ -296,7 +296,7 @@
                 const isDiagonal = dx !== 0 && dy !== 0;
 
                 if (isDiagonal) {
-                    canMove = canMoveDiagonal(x, y, dx, dy);
+                    canMove = canMoveDiagonal(x, y, dx, dy, event);
                 } else {
                     canMove = event.isLaserPassable(x, y, dir);
                     // canMove = $gameMap.isPassable(x, y, dir);
@@ -609,7 +609,7 @@
 
 
 
-            
+
 
             points.push({
                 x: sx,
@@ -747,7 +747,7 @@
                     } else {
                         //sprite.z = 3;
                         const level = ev._regionLevel ?? 0
-                        sprite.z(ev._priorityType * 2) + 1 + level
+                        sprite.z = (ev._priorityType * 2) + 1 + level
                     }
 
                     this._laserSprites.push(sprite);
@@ -759,6 +759,6 @@
         this._tilemap.sortChildren();
     };
 
- 
+
 
 })();
