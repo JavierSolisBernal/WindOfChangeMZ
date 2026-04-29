@@ -16,7 +16,7 @@
 
     const PLUGINTILEABOVE = "SS_RegionTileAbove"
     let TUNNELS = [];
-
+    const COLORS = { orange: "#FFA500", green:"#00AA00" }
 
 
     const REGION_CONFIG = {};
@@ -80,7 +80,7 @@
 
 
     //VARIABLES 
-    
+
 
 
     //HELPERS
@@ -89,6 +89,33 @@
         const factor = 10 ** decimals;
         return Math.round((n + Number.EPSILON) * factor) / factor;
     }
+
+
+    //HEX to RGB
+    const hexToRgb = function (hex) {
+        hex = hex.replace("#", "").trim();
+
+        // #RGB
+        if (hex.length === 3) {
+            hex = hex.split("").map(c => c + c).join("");
+        }
+
+        const num = parseInt(hex, 16);
+
+        return {
+            r: (num >> 16) & 255,
+            g: (num >> 8) & 255,
+            b: num & 255
+        };
+    };
+
+    //RGB to HEX
+    const rgbToHex = function (r, g, b) {
+        return "#" + [r, g, b]
+            .map(x => x.toString(16).padStart(2, "0"))
+            .join("")
+            .toUpperCase();
+    };
 
     //DIAGONALLY PASSABILITY
     const canMoveDiagonal = function (x, y, dx, dy) {
@@ -151,7 +178,7 @@
         constructor(dir, turnedOn = false) {
             this.startDirection = dir;
             this.turnedOn = turnedOn;
-
+            this.laserColor = "#FF0000"
             this.path = [];
             this.needRefresh = true;
             this.needRedraw = true;
@@ -194,7 +221,8 @@
 
             const maxSteps = Math.max($gameMap.width(), $gameMap.height()) * 2;
 
-            path.push({ x, y, origin: true });
+            let color = this.laserColor
+            path.push({ x, y, origin: true, color });
 
             for (let step = 0; step < maxSteps; step++) {
 
@@ -202,13 +230,23 @@
                 const nextX = x + dx;
                 const nextY = y + dy;
 
-                if (!$gameMap.isValid(nextX, nextY)) break;
+                if (!$gameMap.isValid(nextX, nextY)) {
+                    path.pop()
+                    path.push({
+                        x: x,
+                        y: y,
+                        color: color,
+                        end: true,
+                        type: "edge"
+                    });
+                    break;
+                }
 
                 // 2. MOVE FIRST (enter tile)
                 x = nextX;
                 y = nextY;
 
-                path.push({ x, y, type: "path" });
+                path.push({ x, y, type: "path", color: color });
 
                 const eventsAtTile = $gameMap.eventsXyNt(x, y);
 
@@ -229,7 +267,7 @@
 
                     // BLOCK
                     if (resultDir == null) {
-                        path.push({ x, y, end: true, type: "mirror_block" });
+                        path.push({ x, y, end: true, type: "mirror_block", color: color });
                         this.path = path;
                         return;
                     }
@@ -238,7 +276,9 @@
                     dir = resultDir;
                     [dx, dy] = DIR[dir];
 
-                    path.push({ x, y, type: "mirror_reflect" });
+                    color = e._color ?? color
+
+                    path.push({ x, y, type: "mirror_reflect", color: color });
 
                     reflected = true;
                     break;
@@ -258,19 +298,19 @@
                 if (isDiagonal) {
                     canMove = canMoveDiagonal(x, y, dx, dy);
                 } else {
-                    canMove=event.isLaserPassable(x, y, dir);
-                   // canMove = $gameMap.isPassable(x, y, dir);
+                    canMove = event.isLaserPassable(x, y, dir);
+                    // canMove = $gameMap.isPassable(x, y, dir);
                 }
 
                 if (!canMove) {
                     path.pop()
-                    path.push({ x: nextX, y: nextY, end: true, type: "wall" });
+                    path.push({ x: nextX, y: nextY, dx: dx, dy: dy, end: true, type: "wall", color: color });
                     break;
                 }
 
                 if (sameLevelBlocking) {
                     path.pop()
-                    path.push({ x, y, end: true, type: "event" });
+                    path.push({ x, y, end: true, type: "event", color: color });
                     break;
                 }
             }
@@ -281,7 +321,7 @@
         }
 
 
-        
+
 
 
     }
@@ -321,6 +361,34 @@
         if (!meta?.mirror) return;
 
 
+        const isValidHexColor = function (str) {
+            if (typeof str !== "string") return false;
+            return /^#([0-9A-F]{3}|[0-9A-F]{6})$/i.test(str.trim());
+        };
+
+        const normalizeHex = function (hex) {
+            hex = hex.trim();
+
+            if (/^#[0-9A-F]{3}$/i.test(hex)) {
+                hex = "#" + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
+            }
+
+            return hex.toUpperCase();
+        };
+
+        if (meta.color) {
+            let c = meta.color.trim();
+
+            const isHex = c[0] === "#";
+
+            if (isHex) {
+                this._color = isValidHexColor(c) ? normalizeHex(c) : null;
+            } else {
+                c = c.toLowerCase();
+                this._color = COLORS[c] ?? null;
+            }
+        }
+
         // <mirror:x>
         if (meta.mirror !== "") {
             this._md = Number(meta.mirror);
@@ -344,28 +412,31 @@
 
 
     Game_Event.prototype.isLaserPassable = function (x, y, dir) {
-        if (!params_ext)  return $gameMap.isPassable(x, y, dir);
+        if (!params_ext) return $gameMap.isPassable(x, y, dir);
         const x2 = $gameMap.roundXWithDirection(x, dir);
         const y2 = $gameMap.roundYWithDirection(y, dir);
         const opp = this.reverseDir(dir);
-        const regionId=$gameMap.regionId(x,y)
-        const config=REGION_CONFIG[regionId]
+        const regionId = $gameMap.regionId(x, y)
+        const config = REGION_CONFIG[regionId]
         if (this._regionLevel >= (config?.level ?? 0)) return true;
-        
-        const dirs=config?.below??[]
-        if(dirs.includes(dir) && dirs.includes(opp)) return true
+
+        const dirs = config?.below ?? []
+        if (dirs.includes(dir) && dirs.includes(opp)) return true
         return $gameMap.isPassable(x, y, dir);
-    
+
     };
 
 
-    Game_Map.prototype.isTunnel = function (x, y) {
+    Game_Map.prototype.isTunnel = function (x, y, event) {
         if (!params_ext) {
-        const SAFE_TUNNELS = Array.isArray(TUNNELS) ? TUNNELS : [];
-        return SAFE_TUNNELS.includes(this.regionId(x, y));
+            const SAFE_TUNNELS = Array.isArray(TUNNELS) ? TUNNELS : [];
+            return SAFE_TUNNELS.includes(this.regionId(x, y));
         }
-         
-        return false    
+        const regionId = $gameMap.regionId(x, y)
+        const config = REGION_CONFIG[regionId]
+        const rulesPassed = $gameSystem.regionRulesPassed();
+        if (config && event?._regionLevel <= (config?.level ?? 0) && !rulesPassed) return true
+        return false
 
     }
 
@@ -412,6 +483,16 @@
             this._lastDisplayX !== dx ||
             this._lastDisplayY !== dy;
 
+        let rules = false
+
+        if (params_ext) {
+            const Systemrules = $gameSystem.regionRulesPassed()
+            if (this._lastrules != Systemrules) {
+                this._lastrules = Systemrules
+                rules = true
+            }
+        }
+
         this._lastDisplayX = dx;
         this._lastDisplayY = dy;
 
@@ -419,13 +500,14 @@
             laser.refreshPath(this._event);
         }
 
-        if (laser.needRedraw || moved) {
+        if (laser.needRedraw || moved || rules) {
             this.redraw();
             laser.needRedraw = false;
         }
     };
 
-    Sprite_Laser.prototype.redraw = function () {
+    //for DEBUGGING
+    Sprite_Laser.prototype.redrawdots = function () {
         const laser = this._laser;
 
         this.bitmap.clear();
@@ -440,9 +522,11 @@
         const screenW = Graphics.width;
         const screenH = Graphics.height;
 
+
+
         for (const p of laser.path) {
 
-            if ($gameMap.isTunnel(p.x, p.y)) continue;
+            if ($gameMap.isTunnel(p.x, p.y, this._event)) continue;
 
             // convert map → screen space
             const sx = (p.x - dx) * tw + tw / 2;
@@ -473,6 +557,139 @@
         }
     };
 
+
+
+    Sprite_Laser.prototype.redraw = function () {
+        const laser = this._laser;
+
+        this.bitmap.clear();
+        if (!laser.turnedOn) return;
+
+        const ctx = this.bitmap.context;
+        ctx.save();
+
+        const tw = $gameMap.tileWidth();
+        const th = $gameMap.tileHeight();
+
+        const dx = $gameMap.displayX();
+        const dy = $gameMap.displayY();
+
+        const screenW = Graphics.width;
+        const screenH = Graphics.height;
+
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        // =========================
+        // 1. BUILD POINTS
+        // =========================
+        const points = [];
+
+        let color = "#ff0000";
+        for (const p of laser.path) {
+
+
+
+
+            // break beam in tunnels
+            if ($gameMap.isTunnel(p.x, p.y, this._event)) {
+                points.push(null);
+                continue;
+            }
+
+            // map → screen
+            const sx = (p.x - dx) * tw + tw / 2;
+            const sy = (p.y - dy) * th + th / 2;
+
+            // skip offscreen (but break beam)
+            if (sx < -tw || sy < -th || sx > screenW + tw || sy > screenH + th) {
+                points.push(null);
+                continue;
+            }
+
+
+
+            
+
+            points.push({
+                x: sx,
+                y: sy,
+                color: p.color,
+                type: p.type
+            });
+        }
+
+        // =========================
+        // 2. DRAW FUNCTION
+        // =========================
+        const drawBeam = (width, alpha, colorOverride = null) => {
+            ctx.lineWidth = width;
+            ctx.globalAlpha = alpha;
+
+            for (let i = 1; i < points.length; i++) {
+                const a = points[i - 1];
+                const b = points[i];
+
+                if (!a || !b) continue;
+
+                let x2 = b.x;
+                let y2 = b.y;
+
+                //  FIXED wall endpoint (no diagonal bug)
+                if (b.type === "wall") {
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+
+                    const len = Math.hypot(dx, dy);
+
+                    if (len > 0) {
+                        const nx = dx / len;
+                        const ny = dy / len;
+
+                        x2 -= nx * (tw / 2);
+                        y2 -= ny * (th / 2);
+                    }
+                }
+
+                if (b.type === "edge") {
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+
+                    const len = Math.hypot(dx, dy);
+
+                    if (len > 0) {
+                        const nx = dx / len;
+                        const ny = dy / len;
+
+                        x2 += nx * (tw / 2);
+                        y2 += ny * (th / 2);
+                    }
+                }
+
+                ctx.strokeStyle = colorOverride || b.color || "#ff0000";
+
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+        };
+
+        // =========================
+        // 3. RENDER LAYERS
+        // =========================
+
+        // glow
+        drawBeam(10, 0.15);
+
+        // main beam
+        drawBeam(4, 1.0);
+
+        // core
+        drawBeam(2, 1.0, "#ffffff");
+
+        ctx.restore();
+    };
 
     const _SS_createTilemap = Spriteset_Map.prototype.createTilemap;
     Spriteset_Map.prototype.createTilemap = function () {
@@ -523,11 +740,14 @@
                     );
 
                     // sync z with event
+
                     const charSprite = this.findCharacterSprite(ev);
                     if (charSprite) {
                         sprite.z = charSprite.z + 0.0;
                     } else {
-                        sprite.z = 3;
+                        //sprite.z = 3;
+                        const level = ev._regionLevel ?? 0
+                        sprite.z(ev._priorityType * 2) + 1 + level
                     }
 
                     this._laserSprites.push(sprite);
@@ -539,253 +759,6 @@
         this._tilemap.sortChildren();
     };
 
-
-    /* to remake
-    // =====================================================
-    // SPRITE LASER (RENDERING)
-    // =====================================================
-    function Sprite_Laser(laser, event) {
-        this.initialize(laser, event);
-    }
-
-    Sprite_Laser.prototype = Object.create(Sprite.prototype);
-    Sprite_Laser.prototype.constructor = Sprite_Laser;
-
-    Sprite_Laser.prototype.initialize = function (laser, event) {
-        Sprite.prototype.initialize.call(this);
-
-        this._laser = laser;
-        this._event = event;
-
-        this.bitmap = new Bitmap(Graphics.width, Graphics.height);
-
-        // IMPORTANT VISIBILITY FIXES
-        this.visible = true;
-        this.opacity = 255;
-    };
-
-    // FOLLOW MAP SCROLL (CRITICAL FIX)
-    Sprite_Laser.prototype.updatePosition = function () {
-        this.x = -$gameMap.displayX() * $gameMap.tileWidth();
-        this.y = -$gameMap.displayY() * $gameMap.tileHeight();
-    };
-
-    Sprite_Laser.prototype.update = function () {
-        Sprite.prototype.update.call(this);
-
-        this.updatePosition();
-
-        const laser = this._laser;
-        if (!laser) return;
-
-        if (laser.needRefresh) {
-            laser.refreshPath(this._event);
-        }
-
-        if (laser.needRedraw) {
-            this.redraw();
-            laser.needRedraw = false;
-        }
-    };
-
-    Sprite_Laser.prototype.redraw = function () {
-        const laser = this._laser;
-
-        this.bitmap.clear();
-
-
-
-        if (!laser.turnedOn) return;
-
-        const tw = $gameMap.tileWidth();
-        const th = $gameMap.tileHeight();
-
-
-        // DOT DEBUG DRAW
-        for (const p of laser.path) {
-            const isTunnel = $gameMap.isTunnel(p.x, p.y);
-            if (isTunnel) continue;
-            const size = 6;
-
-            this.bitmap.fillRect(
-                p.x * tw + tw / 2 - size / 2,
-                p.y * th + th / 2 - size / 2,
-                size,
-                size,
-                "#ff0000"
-            );
-        }
-    };
-
-
-    Sprite_Laser.prototype.redraw = function () {
-        const laser = this._laser;
-
-        this.bitmap.clear();
-        if (!laser.turnedOn) return;
-
-        const tw = $gameMap.tileWidth();
-        const th = $gameMap.tileHeight();
-
-        const ctx = this.bitmap.context;
-        ctx.save();
-
-        // --------------------------------------------------
-        // 1. BUILD POINTS (with tunnel BREAKS, not skips)
-        // --------------------------------------------------
-        const points = [];
-
-        for (const p of laser.path) {
-
-            if ($gameMap.isTunnel(p.x, p.y)) {
-                points.push(null);
-                continue;
-            }
-
-            points.push({
-                x: p.x * tw + tw / 2,
-                y: p.y * th + th / 2,
-                color: p.color,
-                type: p.type
-            });
-        }
-
-        if (points.length < 2) {
-            ctx.restore();
-            return;
-        }
-
-        // --------------------------------------------------
-        // 2. FIX WALL ENDPOINT (stop at tile edge)
-        // --------------------------------------------------
-        const last = points[points.length - 1];
-
-        if (last && last.type === "wall") {
-            last.x -= tw/2
-            last.y -= th/2
-        }
-
-        // --------------------------------------------------
-        // 3. DRAW SEGMENT FUNCTION
-        // --------------------------------------------------
-        const drawPath = (width, alpha, colorOverride = null) => {
-            ctx.lineWidth = width;
-            ctx.globalAlpha = alpha;
-            ctx.lineCap = "round";
-            ctx.lineJoin = "round";
-
-            for (let i = 1; i < points.length; i++) {
-                const a = points[i - 1];
-                const b = points[i];
-                const c = points[i+1]; 
-
-                
-                if(c===null && !colorOverride ) {
-                    b.x+=tw/4, 
-                    b.y+=th/4
-                }
-
-                if(a===null && !colorOverride ) {
-                    b.x-=tw/4, 
-                    b.y-=th/4
-                }
-
-
-                if (!a || !b) continue;
-                
-                let defaultcolor
-                defaultcolor="#ff0000"
-                defaultcolor="#ff00ff"
-                ctx.strokeStyle = colorOverride || (b.color || defaultcolor);
-
-                ctx.beginPath();
-                ctx.moveTo(a.x, a.y);
-                ctx.lineTo(b.x, b.y);
-                ctx.stroke();
-            }
-        };
-
-        // --------------------------------------------------
-        // 4. LAYERS
-        // --------------------------------------------------
-
-        // 🔵 glow
-        drawPath(10, 0.15);
-
-        // 🟣 main beam
-        drawPath(4, 1.0);
-
-        // ⚪ core
-        drawPath(2, 1.0, "#ffffff");
-
-        ctx.restore();
-    };
-    // =====================================================
-    // SPRITESET MAP INTEGRATION
-    // =====================================================
-
-    const _createTilemap = Spriteset_Map.prototype.createTilemap;
-    Spriteset_Map.prototype.createTilemap = function () {
-        _createTilemap.call(this);
-        this.createLaserLayer();
-    };
-
-    Spriteset_Map.prototype.createLaserLayer = function () {
-        // IMPORTANT: use Sprite container, not raw PIXI.Container
-        //this._laserLayer = new Sprite();
-        this._laserLayer = this._tilemap
-        //this._tilemap.addChild(this._laserLayer);
-
-        this._laserSprites = [];
-    };
-
-    const _update = Spriteset_Map.prototype.update;
-    Spriteset_Map.prototype.update = function () {
-        _update.call(this);
-        this.updateLasers();
-    };
-
-
-    Spriteset_Map.prototype.findCharacterSprite = function (character) {
-        return this._characterSprites.find(s => s._character === character);
-    };
-
-
-    Spriteset_Map.prototype.updateLasers = function () {
-        const events = $gameMap.events();
-        for (const ev of events) {
-            if (!ev._lasers) continue;
-
-            for (const key in ev._lasers) {
-                const laser = ev._lasers[key];
-                const regionlevel = ev._regionLevel ?? 0
-                // ensure path is updated
-                if (laser.needRefresh) {
-                    laser.refreshPath(ev);
-                }
-
-                // create sprite once
-                if (!laser._sprite) {
-                    const sprite = new Sprite_Laser(laser, ev);
-
-                    laser._sprite = sprite;
-
-
-                    this._laserLayer.addChild(sprite);
-
-                    const spriteset = SceneManager._scene._spriteset;
-                    const charSprite = spriteset.findCharacterSprite(ev);
-                    const offset = 0.0005
-
-                    //this._laserLayer.z = clamp(charSprite.z - offset)
-                    sprite.z = clamp(charSprite.z - offset)
-                    //this._laserLayer.z=(ev._priorityType * 2) + 1 + regionlevel + offset
-                    this._laserSprites.push(sprite);
-                }
-            }
-        }
-    };
-
-*/
+ 
 
 })();
