@@ -14,11 +14,12 @@
     const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
     const params = PluginManager.parameters(pluginName);
 
-    const PLUGINTILEABOVE = "SS_RegionTileAbove.js"
+    const PLUGINTILEABOVE = "SS_RegionTileAbove"
     let TUNNELS = [];
 
 
 
+    const REGION_CONFIG = {};
     // check if plugin is installed AND enabled
     const hastileabove = PluginManager._scripts.includes(PLUGINTILEABOVE);
 
@@ -27,6 +28,48 @@
         ? PluginManager.parameters(PLUGINTILEABOVE)
         : null;
     if (params_ext) {
+        //GET DIRECTIONS
+        const parseDirectionStruct = (raw) => {
+            if (!raw) return null;
+            let obj;
+            try {
+                obj = JSON.parse(raw);
+            } catch {
+                return null;
+            }
+            const dirs = [];
+            if (obj.up === "true") dirs.push(8);
+            if (obj.down === "true") dirs.push(2);
+            if (obj.left === "true") dirs.push(4);
+            if (obj.right === "true") dirs.push(6);
+            return dirs.length > 0 ? dirs : null;
+        }
+
+        const rawRegions = JSON.parse(params_ext.Regions || "[]");
+        for (const r of rawRegions) {
+            if (!r) continue;
+
+            let obj;
+            try {
+                obj = JSON.parse(r);
+            } catch (e) {
+                console.warn("Invalid region struct:", r);
+                continue;
+            }
+
+            const id = Number(obj.regionId);
+            if (!id) continue;
+
+            REGION_CONFIG[id] = {
+                alpha: obj.alpha !== undefined ? Number(obj.alpha) : 1,
+                level: obj.level !== undefined ? Number(obj.level) : 0,
+                force: obj.force === "true" || obj.force === true,
+                skip: obj.skip === "true" || obj.skip === true,
+                backgroundTile: obj.backgroundTile !== undefined ? Number(obj.backgroundTile) : undefined,
+                below: parseDirectionStruct(obj.below),
+                above: parseDirectionStruct(obj.above)
+            };
+        }
 
     }
     else {
@@ -37,7 +80,7 @@
 
 
     //VARIABLES 
-
+    
 
 
     //HELPERS
@@ -53,11 +96,12 @@
         const horzDir = dx > 0 ? 6 : 4;
         const vertDir = dy > 0 ? 2 : 8;
 
-        console.log(horzDir, vertDir)
+
 
         const canHorz = $gameMap.isPassable(x, y, horzDir);
 
         const canVert = $gameMap.isPassable(x, y, vertDir);
+
 
         if ($gameMap.isTunnel(x, y)) return true
 
@@ -214,7 +258,8 @@
                 if (isDiagonal) {
                     canMove = canMoveDiagonal(x, y, dx, dy);
                 } else {
-                    canMove = $gameMap.isPassable(x, y, dir);
+                    canMove=event.isLaserPassable(x, y, dir);
+                   // canMove = $gameMap.isPassable(x, y, dir);
                 }
 
                 if (!canMove) {
@@ -236,6 +281,9 @@
         }
 
 
+        
+
+
     }
 
     // =====================================================
@@ -246,10 +294,11 @@
         _Game_Event_init.call(this, mapId, eventId);
         this._lasers = {};
 
-
+        const meta = this.event().meta;
+        const dir = meta.dir ?? 6
         // TEST LASER
         if (this.event().id == 1)
-            this._lasers[6] = new Laser(3, true);
+            this._lasers[dir] = new Laser(dir, true);
     };
 
 
@@ -293,36 +342,201 @@
         $gameSelfSwitches.setValue(key, dir);
     };
 
+
+    Game_Event.prototype.isLaserPassable = function (x, y, dir) {
+        if (!params_ext)  return $gameMap.isPassable(x, y, dir);
+        const x2 = $gameMap.roundXWithDirection(x, dir);
+        const y2 = $gameMap.roundYWithDirection(y, dir);
+        const opp = this.reverseDir(dir);
+        const regionId=$gameMap.regionId(x,y)
+        const config=REGION_CONFIG[regionId]
+        if (this._regionLevel >= (config?.level ?? 0)) return true;
+        
+        const dirs=config?.below??[]
+        if(dirs.includes(dir) && dirs.includes(opp)) return true
+        return $gameMap.isPassable(x, y, dir);
+    
+    };
+
+
     Game_Map.prototype.isTunnel = function (x, y) {
+        if (!params_ext) {
         const SAFE_TUNNELS = Array.isArray(TUNNELS) ? TUNNELS : [];
         return SAFE_TUNNELS.includes(this.regionId(x, y));
+        }
+         
+        return false    
+
     }
 
 
-    //STARTING LASER LAYER 
+    function Sprite_Laser(laser, event) {
+        this.initialize(laser, event);
+    }
 
-    Spriteset_Map.prototype.createLaserLayer = function () {
-        this._regionUpperlayer = this._tilemap
-        this._LaserNeedsSort = false;
-        //  UPPER-specific pools & maps
-        this._regionUpperPool = [];
-        this._regionUpperMap = {};
-        //  UPPER cache
-        this._lastUpperStartX = -1;
-        this._lastUpperStartY = -1;
-        //  UPPER animation (if you need it later)
-        this._upperAnimFrame = 0;
+    Sprite_Laser.prototype = Object.create(Sprite.prototype);
+    Sprite_Laser.prototype.constructor = Sprite_Laser;
+
+    Sprite_Laser.prototype.initialize = function (laser, event) {
+        Sprite.prototype.initialize.call(this);
+
+        this._laser = laser;
+        this._event = event;
+
+        this._lastDisplayX = null;
+        this._lastDisplayY = null;
+
+        this.bitmap = new Bitmap(Graphics.width, Graphics.height);
+
+        this.visible = true;
+        this.opacity = 255;
     };
 
-    //CREATE LASER CONTAINERS
-    Spriteset_Map.prototype._buildLaserContainer = function (event_id, mapX, mapY) {
-        let container = this._regionUpperPool.pop();
-        if (!container) container = new PIXI.Container();
-        container.removeChildren();
-        container._a1 = null;
+    Sprite_Laser.prototype.updatePosition = function () {
+        this.x = 0;
+        this.y = 0;
+    };
+
+    Sprite_Laser.prototype.update = function () {
+        Sprite.prototype.update.call(this);
+
+        this.updatePosition();
+
+        const laser = this._laser;
+        if (!laser) return;
+
+        const dx = $gameMap.displayX();
+        const dy = $gameMap.displayY();
+
+        const moved =
+            this._lastDisplayX !== dx ||
+            this._lastDisplayY !== dy;
+
+        this._lastDisplayX = dx;
+        this._lastDisplayY = dy;
+
+        if (laser.needRefresh) {
+            laser.refreshPath(this._event);
+        }
+
+        if (laser.needRedraw || moved) {
+            this.redraw();
+            laser.needRedraw = false;
+        }
+    };
+
+    Sprite_Laser.prototype.redraw = function () {
+        const laser = this._laser;
+
+        this.bitmap.clear();
+        if (!laser.turnedOn) return;
+
         const tw = $gameMap.tileWidth();
         const th = $gameMap.tileHeight();
-        return container;
+
+        const dx = $gameMap.displayX();
+        const dy = $gameMap.displayY();
+
+        const screenW = Graphics.width;
+        const screenH = Graphics.height;
+
+        for (const p of laser.path) {
+
+            if ($gameMap.isTunnel(p.x, p.y)) continue;
+
+            // convert map → screen space
+            const sx = (p.x - dx) * tw + tw / 2;
+            const sy = (p.y - dy) * th + th / 2;
+
+            //  skip if outside screen (with small margin)
+            if (sx < -tw || sy < -th || sx > screenW + tw || sy > screenH + th) {
+                continue;
+            }
+
+            let color = "#ff0000";
+
+            if (p.origin) color = "#00ff00";
+            else if (p.type === "mirror_reflect") color = "#00ffff";
+            else if (p.type === "mirror_block") color = "#ffff00";
+            else if (p.type === "wall") color = "#ffffff";
+            else if (p.type === "event") color = "#ff8800";
+
+            const size = 6;
+
+            this.bitmap.fillRect(
+                sx - size / 2,
+                sy - size / 2,
+                size,
+                size,
+                color
+            );
+        }
+    };
+
+
+    const _SS_createTilemap = Spriteset_Map.prototype.createTilemap;
+    Spriteset_Map.prototype.createTilemap = function () {
+        _SS_createTilemap.call(this);
+
+        // we inject directly into tilemap
+        this._laserSprites = [];
+    };
+
+    // hook update
+    const _SS_update = Spriteset_Map.prototype.update;
+    Spriteset_Map.prototype.update = function () {
+        _SS_update.call(this);
+        this.updateLasers();
+    };
+
+    // helper (you already had this, keep it)
+    Spriteset_Map.prototype.findCharacterSprite = function (character) {
+        return this._characterSprites.find(s => s._character === character);
+    };
+
+    // main logic
+    Spriteset_Map.prototype.updateLasers = function () {
+        const events = $gameMap.events();
+
+        for (const ev of events) {
+            if (!ev._lasers) continue;
+
+            for (const key in ev._lasers) {
+                const laser = ev._lasers[key];
+
+                // update logic
+                if (laser.needRefresh) {
+                    laser.refreshPath(ev);
+                }
+
+                // create sprite once
+                if (!laser._sprite) {
+                    const sprite = new Sprite_Laser(laser, ev);
+                    laser._sprite = sprite;
+
+                    this._tilemap.addChild(sprite);
+
+                    // force top render
+                    this._tilemap.setChildIndex(
+                        sprite,
+                        this._tilemap.children.length - 1
+                    );
+
+                    // sync z with event
+                    const charSprite = this.findCharacterSprite(ev);
+                    if (charSprite) {
+                        sprite.z = charSprite.z + 0.0;
+                    } else {
+                        sprite.z = 3;
+                    }
+
+                    this._laserSprites.push(sprite);
+                }
+            }
+        }
+
+        // IMPORTANT: enforce z sorting
+        this._tilemap.sortChildren();
     };
 
 
