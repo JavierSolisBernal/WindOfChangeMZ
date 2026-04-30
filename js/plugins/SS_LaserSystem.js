@@ -235,6 +235,8 @@
                     path.push({
                         x: x,
                         y: y,
+                        dx,
+                        dy,
                         color: color,
                         end: true,
                         type: "edge"
@@ -246,7 +248,11 @@
                 x = nextX;
                 y = nextY;
 
-                path.push({ x, y, dx,dy, type: "path", color: color });
+                const isTunnel = $gameMap.isTunnel(x, y, event)
+                if (isTunnel)
+                    path.push({ x, y, dx, dy, type: "path", color: color, isTunnel: true });
+                else
+                    path.push({ x, y, dx, dy, type: "path", color: color });
 
                 const eventsAtTile = $gameMap.eventsXyNt(x, y);
 
@@ -267,7 +273,7 @@
 
                     // BLOCK
                     if (resultDir == null) {
-                        path.push({ x, y, dx,dy, end: true, type: "mirror_block", color: color });
+                        path.push({ x, y, dx, dy, end: true, type: "mirror_block", color: color });
                         this.path = path;
                         return;
                     }
@@ -338,7 +344,11 @@
         const dir = meta.dir ?? 6
         // TEST LASER
         if (this.event().id == 1)
+           {
             this._lasers[dir] = new Laser(dir, true);
+            this._lasers[6] = new Laser(6, true);
+
+           }
     };
 
 
@@ -413,7 +423,7 @@
 
     Game_Event.prototype.isLaserPassable = function (x, y, dir) {
         if (!params_ext) {
-            if($gameMap.isTunnel(x,y,null)) return true
+            if ($gameMap.isTunnel(x, y, null)) return true
             return $gameMap.isPassable(x, y, dir);
         }
         const x2 = $gameMap.roundXWithDirection(x, dir);
@@ -429,7 +439,7 @@
 
     };
 
-     
+
 
 
     Game_Map.prototype.isTunnel = function (x, y, event) {
@@ -562,14 +572,13 @@
         }
     };
 
- Sprite_Laser.prototype.redraw = function () {
+    Sprite_Laser.prototype.redraw = function () {
         const laser = this._laser;
 
         this.bitmap.clear();
-        if (!laser.turnedOn) return;
+        if (!laser.turnedOn || !laser.path || laser.path.length < 2) return;
 
         const ctx = this.bitmap.context;
-        ctx.save();
 
         const tw = $gameMap.tileWidth();
         const th = $gameMap.tileHeight();
@@ -580,137 +589,78 @@
         const screenW = Graphics.width;
         const screenH = Graphics.height;
 
+        const halfW = tw / 2;
+        const halfH = th / 2;
+
+        ctx.save();
+
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
 
-        // =========================
-        // 1. BUILD POINTS
-        // =========================
-        const points = [];
+        // -----------------------------
+        // screen projection helper
+        // -----------------------------
+        const project = (p) => {
+            return {
+                x: (p.x - dx) * tw + halfW,
+                y: (p.y - dy) * th + halfH
+            };
+        };
 
-        let next = false
-        for (const p of laser.path) {
+        const adjustEnd = (a, b, out) => {
+            // only adjust based on TYPE, not structure hacks
+            if (b.type !== "wall" && b.type !== "edge") return;
 
+            const dx = out.x - a.x;
+            const dy = out.y - a.y;
+            const len = Math.hypot(dx, dy);
 
-            const isTunnel = $gameMap.isTunnel(p.x, p.y, this._event)
+            if (!len) return;
 
+            const nx = dx / len;
+            const ny = dy / len;
 
+            out.x += nx * halfW;
+            out.y += ny * halfH;
+        };
 
-            // map → screen
-            let offsetx = tw / 2
-            let offsety = th / 2
-
-            if (next) {
-                offsetx -= tw / 2 *p.dx
-                offsety -= th / 2 *p.dy
-                next = false
-            }
-
-            const sx = (p.x - dx) * tw + offsetx;
-            const sy = (p.y - dy) * th + offsety;
-
-            // skip offscreen (but break beam)
-            if (sx < -tw || sy < -th || sx > screenW + tw || sy > screenH + th) {
-                points.push(null);
-                continue;
-            }
-
-
-            const point = { x: sx, y: sy, color: p.color, type: p.type }
-            if (isTunnel) {
-                points.push(null);
-                next = true
-                continue
-            }
-
-
-            points.push(point);
-        }
-
-        // =========================
-        // 2. DRAW FUNCTION
-        // =========================
         const drawBeam = (width, alpha, colorOverride = null) => {
             ctx.lineWidth = width;
             ctx.globalAlpha = alpha;
 
-            for (let i = 1; i < points.length; i++) {
-                const a = points[i - 1];
-                const b = points[i];
+            for (let i = 1; i < laser.path.length; i++) {
+                const aRaw = laser.path[i - 1];
+                const bRaw = laser.path[i];
 
-                const ab = points[i + 1]
+                if (!aRaw || !bRaw) continue;
 
+                const a = project(aRaw);
+                const b = project(bRaw);
 
-
-                if (!a || !b) continue;
-
-
-
-                let x2 = b.x;
-                let y2 = b.y;
-
-
-
-                //  
-                if (!ab && b.type != "wall") {
-                    const dx = b.x - a.x;
-                    const dy = b.y - a.y;
-
-                    const len = Math.hypot(dx, dy);
-                
-                    if (len > 0) {
-                        const nx = dx / len;
-                        const ny = dy / len;
-                        x2 += nx * (tw / 1.5);
-                        y2 += ny * (th / 1.5);
-                    }
+                // cheap offscreen cull (segment-level)
+                if (
+                    (a.x < -tw && b.x < -tw) ||
+                    (a.x > screenW + tw && b.x > screenW + tw) ||
+                    (a.y < -th && b.y < -th) ||
+                    (a.y > screenH + th && b.y > screenH + th)
+                ) {
+                    continue;
                 }
 
+                adjustEnd(a, b, b);
 
-                //EDGE
-                if (b.type === "wall") {
-                    const dx = b.x - a.x;
-                    const dy = b.y - a.y;
-
-                    const len = Math.hypot(dx, dy);
-
-                    if (len > 0) {
-                        const nx = dx / len;
-                        const ny = dy / len;
-
-                        x2 += nx * (tw / 2);
-                        y2 += ny * (th / 2);
-                    }
-                }
-                //EDGE
-                if (b.type === "edge") {
-                    const dx = b.x - a.x;
-                    const dy = b.y - a.y;
-
-                    const len = Math.hypot(dx, dy);
-
-                    if (len > 0) {
-                        const nx = dx / len;
-                        const ny = dy / len;
-
-                        x2 += nx * (tw / 2);
-                        y2 += ny * (th / 2);
-                    }
-                }
-
-                ctx.strokeStyle = colorOverride || b.color || "#ff0000";
-
+                ctx.strokeStyle = colorOverride || bRaw.color || "#ff0000";
 
                 ctx.beginPath();
                 ctx.moveTo(a.x, a.y);
-                ctx.lineTo(x2, y2);
+                ctx.lineTo(b.x, b.y);
                 ctx.stroke();
             }
         };
 
-        // =========================
-        // 3. RENDER LAYERS
-        // =========================
+        // -----------------------------
+        // render layers
+        // -----------------------------
 
         // glow
         drawBeam(10, 0.15);
@@ -723,7 +673,175 @@
 
         ctx.restore();
     };
-   
+
+
+
+    Sprite_Laser.prototype.redraw = function () {
+        const laser = this._laser;
+
+        this.bitmap.clear();
+        if (!laser.turnedOn || !laser.path || laser.path.length < 2) return;
+
+        const ctx = this.bitmap.context;
+
+        const tw = $gameMap.tileWidth();
+        const th = $gameMap.tileHeight();
+
+        const dx = $gameMap.displayX();
+        const dy = $gameMap.displayY();
+
+        const screenW = Graphics.width;
+        const screenH = Graphics.height;
+
+        const halfW = tw / 2;
+        const halfH = th / 2;
+
+        ctx.save();
+
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        // -------------------------
+        // projection (world → screen)
+        // -------------------------
+        const project = (p) => ({
+            x: (p.x - dx) * tw + halfW,
+            y: (p.y - dy) * th + halfH
+        });
+
+        const adjustEnd = (bRaw, out) => {
+
+            if(bRaw.isTunnel||bRaw.type==="edge"  ) 
+            {
+            //adjust        
+            out.x+= halfW*bRaw.dx
+            out.y+= halfH*bRaw.dy
+            return
+            }
+            if(bRaw.type==="wall") 
+                {
+            //adjust        
+            out.x-= halfW*bRaw.dx
+            out.y-= halfH*bRaw.dy
+            return
+            }
+             
+            
+           
+       
+            return
+        };
+
+
+
+        const adjustBegin = (bRaw, out) => {
+
+            if(bRaw.isTunnel) 
+            {
+            //adjust        
+            out.x-= halfW*bRaw.dx
+            out.y-= halfH*bRaw.dy
+            return
+            }
+             
+             
+            
+           
+       
+            return
+        };
+ 
+
+
+        const drawPolyline = (width, alpha, colorOverride = null) => {
+            ctx.lineWidth = width;
+            ctx.globalAlpha = alpha;
+
+            ctx.beginPath();
+
+            let started = false;
+            let lastColor = null;
+
+            for (let i = 0; i < laser.path.length; i++) {
+                const pRaw = laser.path[i];
+                const a = laser.path[i - 1]
+                const b = laser.path[i + 1]
+ 
+ 
+                const p = project(pRaw);
+
+                if (b && (b.isTunnel )) adjustEnd(b, p)
+                if (a && (a.isTunnel )) adjustBegin(a, p) 
+               // if (a && a.isTunnel)adjustBegin(project(a), a, p)
+            
+                if(pRaw.type=="wall"|| pRaw.type=="edge") adjustEnd(pRaw, p)
+ 
+                const color = colorOverride || pRaw.color || "#ff0000";
+
+                const isTunnel = pRaw.isTunnel;
+
+                // -------------------------
+                // tunnel = HARD BREAK
+                // -------------------------
+                if (isTunnel) {
+                    
+                    if (started) ctx.stroke();
+                    ctx.beginPath();
+                    started = false;
+                    lastColor = null;
+                    continue;
+                    
+                }
+
+
+
+                // -------------------------
+                // color / logical breaks
+                // -------------------------
+                const colorChanged = lastColor && lastColor !== color;
+
+                const breakStroke =
+                    pRaw.type === "mirror" ||
+                    pRaw.type === "start";
+
+                if (!started || colorChanged || breakStroke) {
+                    if (started) ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+
+                    started = true;
+                    lastColor = color;
+
+                    ctx.strokeStyle = color;
+                    continue;
+                }
+
+                // -------------------------
+                // normal continuation
+                // -------------------------
+                ctx.lineTo(p.x, p.y);
+            }
+
+            if (started) ctx.stroke();
+        };
+
+
+
+
+
+
+
+        // -------------------------
+        // layers (glow → main → core)
+        // -------------------------
+
+        drawPolyline(10, 0.15);            // glow
+        drawPolyline(4, 1.0);             // main beam
+        drawPolyline(2, 1.0, "#ffffff");  // core
+
+        ctx.restore();
+    };
 
     const _SS_createTilemap = Spriteset_Map.prototype.createTilemap;
     Spriteset_Map.prototype.createTilemap = function () {
@@ -793,5 +911,5 @@
         this._tilemap.sortChildren();
     };
 
- 
+
 })();
