@@ -70,6 +70,8 @@
                 above: parseDirectionStruct(obj.above)
             };
         }
+        const filtertunnel = Object.entries(REGION_CONFIG).filter(([id, config]) => config.below?.length > 0);
+        TUNNELS = TUNNELS.concat(filtertunnel.map(([id]) => Number(id)))
 
     }
     else {
@@ -249,10 +251,11 @@
                 y = nextY;
 
                 const isTunnel = $gameMap.isTunnel(x, y, event)
+                const regionId = $gameMap.regionId(x, y)
                 if (isTunnel)
-                    path.push({ x, y, dx, dy, type: "path", color: color, isTunnel: true });
+                    path.push({ x, y, dx, dy, regionId, type: "path", color: color, isTunnel: true });
                 else
-                    path.push({ x, y, dx, dy, type: "path", color: color });
+                    path.push({ x, y, dx, dy, regionId, type: "path", color: color });
 
                 const eventsAtTile = $gameMap.eventsXyNt(x, y);
 
@@ -343,12 +346,11 @@
         const meta = this.event().meta;
         const dir = meta.dir ?? 6
         // TEST LASER
-        if (this.event().id == 1)
-           {
+        if (this.event().id == 1) {
             this._lasers[dir] = new Laser(dir, true);
             this._lasers[6] = new Laser(6, true);
 
-           }
+        }
     };
 
 
@@ -443,15 +445,8 @@
 
 
     Game_Map.prototype.isTunnel = function (x, y, event) {
-        if (!params_ext) {
-            const SAFE_TUNNELS = Array.isArray(TUNNELS) ? TUNNELS : [];
-            return SAFE_TUNNELS.includes(this.regionId(x, y));
-        }
-        const regionId = $gameMap.regionId(x, y)
-        const config = REGION_CONFIG[regionId]
-        const rulesPassed = $gameSystem.regionRulesPassed();
-        if (config && event?._regionLevel <= (config?.level ?? 0) && !rulesPassed) return true
-        return false
+        const SAFE_TUNNELS = Array.isArray(TUNNELS) ? TUNNELS : [];
+        return SAFE_TUNNELS.includes(this.regionId(x, y));
 
     }
 
@@ -572,109 +567,6 @@
         }
     };
 
-    Sprite_Laser.prototype.redraw = function () {
-        const laser = this._laser;
-
-        this.bitmap.clear();
-        if (!laser.turnedOn || !laser.path || laser.path.length < 2) return;
-
-        const ctx = this.bitmap.context;
-
-        const tw = $gameMap.tileWidth();
-        const th = $gameMap.tileHeight();
-
-        const dx = $gameMap.displayX();
-        const dy = $gameMap.displayY();
-
-        const screenW = Graphics.width;
-        const screenH = Graphics.height;
-
-        const halfW = tw / 2;
-        const halfH = th / 2;
-
-        ctx.save();
-
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-
-        // -----------------------------
-        // screen projection helper
-        // -----------------------------
-        const project = (p) => {
-            return {
-                x: (p.x - dx) * tw + halfW,
-                y: (p.y - dy) * th + halfH
-            };
-        };
-
-        const adjustEnd = (a, b, out) => {
-            // only adjust based on TYPE, not structure hacks
-            if (b.type !== "wall" && b.type !== "edge") return;
-
-            const dx = out.x - a.x;
-            const dy = out.y - a.y;
-            const len = Math.hypot(dx, dy);
-
-            if (!len) return;
-
-            const nx = dx / len;
-            const ny = dy / len;
-
-            out.x += nx * halfW;
-            out.y += ny * halfH;
-        };
-
-        const drawBeam = (width, alpha, colorOverride = null) => {
-            ctx.lineWidth = width;
-            ctx.globalAlpha = alpha;
-
-            for (let i = 1; i < laser.path.length; i++) {
-                const aRaw = laser.path[i - 1];
-                const bRaw = laser.path[i];
-
-                if (!aRaw || !bRaw) continue;
-
-                const a = project(aRaw);
-                const b = project(bRaw);
-
-                // cheap offscreen cull (segment-level)
-                if (
-                    (a.x < -tw && b.x < -tw) ||
-                    (a.x > screenW + tw && b.x > screenW + tw) ||
-                    (a.y < -th && b.y < -th) ||
-                    (a.y > screenH + th && b.y > screenH + th)
-                ) {
-                    continue;
-                }
-
-                adjustEnd(a, b, b);
-
-                ctx.strokeStyle = colorOverride || bRaw.color || "#ff0000";
-
-                ctx.beginPath();
-                ctx.moveTo(a.x, a.y);
-                ctx.lineTo(b.x, b.y);
-                ctx.stroke();
-            }
-        };
-
-        // -----------------------------
-        // render layers
-        // -----------------------------
-
-        // glow
-        drawBeam(10, 0.15);
-
-        // main beam
-        drawBeam(4, 1.0);
-
-        // core
-        drawBeam(2, 1.0, "#ffffff");
-
-        ctx.restore();
-    };
-
-
 
     Sprite_Laser.prototype.redraw = function () {
         const laser = this._laser;
@@ -711,24 +603,22 @@
 
         const adjustEnd = (bRaw, out) => {
 
-            if(bRaw.isTunnel||bRaw.type==="edge"  ) 
-            {
-            //adjust        
-            out.x+= halfW*bRaw.dx
-            out.y+= halfH*bRaw.dy
-            return
+            if (bRaw.isTunnel || bRaw.type === "edge") {
+                //adjust        
+                out.x += halfW * bRaw.dx
+                out.y += halfH * bRaw.dy
+                return
             }
-            if(bRaw.type==="wall") 
-                {
-            //adjust        
-            out.x-= halfW*bRaw.dx
-            out.y-= halfH*bRaw.dy
-            return
+            if (bRaw.type === "wall") {
+                //adjust        
+                out.x -= halfW * bRaw.dx
+                out.y -= halfH * bRaw.dy
+                return
             }
-             
-            
-           
-       
+
+
+
+
             return
         };
 
@@ -736,21 +626,20 @@
 
         const adjustBegin = (bRaw, out) => {
 
-            if(bRaw.isTunnel) 
-            {
-            //adjust        
-            out.x-= halfW*bRaw.dx
-            out.y-= halfH*bRaw.dy
-            return
+            if (bRaw.isTunnel) {
+                //adjust        
+                out.x -= halfW * bRaw.dx
+                out.y -= halfH * bRaw.dy
+                return
             }
-             
-             
-            
-           
-       
+
+
+
+
+
             return
         };
- 
+
 
 
         const drawPolyline = (width, alpha, colorOverride = null) => {
@@ -766,33 +655,43 @@
                 const pRaw = laser.path[i];
                 const a = laser.path[i - 1]
                 const b = laser.path[i + 1]
- 
- 
+
+
                 const p = project(pRaw);
 
-                if (b && (b.isTunnel )) adjustEnd(b, p)
-                if (a && (a.isTunnel )) adjustBegin(a, p) 
-               // if (a && a.isTunnel)adjustBegin(project(a), a, p)
-            
-                if(pRaw.type=="wall"|| pRaw.type=="edge") adjustEnd(pRaw, p)
- 
+
+
+
+                if (pRaw.type == "wall" || pRaw.type == "edge") adjustEnd(pRaw, p)
+
                 const color = colorOverride || pRaw.color || "#ff0000";
 
                 const isTunnel = pRaw.isTunnel;
 
                 // -------------------------
                 // tunnel = HARD BREAK
-                // -------------------------
-                if (isTunnel) {
-                    
-                    if (started) ctx.stroke();
-                    ctx.beginPath();
-                    started = false;
-                    lastColor = null;
-                    continue;
-                    
-                }
+                // -------------------------  
+                // 
+                const pathRegionLevel=REGION_CONFIG[pRaw.regionId??0]?.level??0
+                const laserRegion=(this._event?._regionLevel??0)
 
+                if (params_ext && !$gameSystem.regionRulesPassed()) {
+                    //Adjust tunnels edges
+                    if (b && (b.isTunnel)) adjustEnd(b, p)
+                    if (a && (a.isTunnel)) adjustBegin(a, p)
+
+                    if (isTunnel && pathRegionLevel>laserRegion) {
+
+                        if (started) ctx.stroke();
+                        ctx.beginPath();
+                        started = false;
+                        lastColor = null;
+                        continue;
+
+                    }
+
+                
+}
 
 
                 // -------------------------
