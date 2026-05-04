@@ -23,7 +23,7 @@
     // check if plugin is installed AND enabled
     const hastileabove = PluginManager._scripts.includes(PLUGINTILEABOVE);
 
-    // only load parameters if it exists TO EXTEND EVEN MORE THE THROWN PLUGIN
+    // only load parameters if it exists 
     const params_ext = hastileabove
         ? PluginManager.parameters(PLUGINTILEABOVE)
         : null;
@@ -79,7 +79,7 @@
 
         TUNNELS = TUNNELS.concat(tun)
     }
-    console.log(TUNNELS)
+
 
     //VARIABLES 
 
@@ -124,16 +124,9 @@
         // horizontal + vertical checks separately
         const horzDir = dx > 0 ? 6 : 4;
         const vertDir = dy > 0 ? 2 : 8;
-
-
-
         const canHorz = event.isLaserPassable(x, y, horzDir);
-
         const canVert = event.isLaserPassable(x, y, vertDir);
-
-
         if ($gameMap.isTunnel(x, y)) return true
-
         return canHorz && canVert;
     }
 
@@ -308,7 +301,6 @@
                     canMove = canMoveDiagonal(x, y, dx, dy, event);
                 } else {
                     canMove = event.isLaserPassable(x, y, dir);
-                    // canMove = $gameMap.isPassable(x, y, dir);
                 }
 
                 if (!canMove) {
@@ -323,7 +315,6 @@
                     break;
                 }
             }
-            console.log(path)
             this.path = path;
             this.needRefresh = false;
             this.needRedraw = true;
@@ -428,10 +419,11 @@
             if ($gameMap.isTunnel(x, y, null)) return true
             return $gameMap.isPassable(x, y, dir);
         }
+        const regionId = $gameMap.regionId(x, y)
+        if (regionId == 0) return $gameMap.isPassable(x, y, dir);
         const x2 = $gameMap.roundXWithDirection(x, dir);
         const y2 = $gameMap.roundYWithDirection(y, dir);
         const opp = this.reverseDir(dir);
-        const regionId = $gameMap.regionId(x, y)
         const config = REGION_CONFIG[regionId]
         if (this._regionLevel >= (config?.level ?? 0)) return true;
 
@@ -650,78 +642,79 @@
 
             let started = false;
             let lastColor = null;
+            
+            for (let i = 1; i < laser.path.length; i++) {
+                const prev = laser.path[i - 1];
+                const curr = laser.path[i];
+                const next = laser.path[i + 1];
+                const currP = project(curr);
+                const prevP = project(prev);
 
-            for (let i = 0; i < laser.path.length; i++) {
-                const pRaw = laser.path[i];
-                const a = laser.path[i - 1]
-                const b = laser.path[i + 1]
+                let offsetx = 0
+                let offsety = 0
+
+                if (curr.type === "edge" || next?.isTunnel) {
+                    offsetx = halfW * curr.dx
+                    offsety = halfH * curr.dy
+
+                }
+
+                if (curr.type === "wall") {
+                    offsetx = halfW * (-1) * curr.dx
+                    offsety = halfH * (-1) * curr.dy
+                }
+
+                if (prev?.isTunnel) {
+                    offsetx = halfW * (1) * prev.dx
+                    offsety = halfH * (1) * prev.dy
+                }
 
 
-                const p = project(pRaw);
+                // apply offset
+                const cpx = {
+                    x: currP.x + offsetx,
+                    y: currP.y + offsety
+                };
 
+                const ppx = {
+                    x: prevP.x + offsetx,
+                    y: prevP.y + offsety
+                };
 
-
-
-                if (pRaw.type == "wall" || pRaw.type == "edge") adjustEnd(pRaw, p)
-
-                const color = colorOverride || pRaw.color || "#ff0000";
-
-                const isTunnel = pRaw.isTunnel;
-
-                // -------------------------
-                // tunnel = HARD BREAK
-                // -------------------------  
-                // 
-                const pathRegionLevel=REGION_CONFIG[pRaw.regionId??0]?.level??0
-                const laserRegion=(this._event?._regionLevel??0)
-
-                if (params_ext && !$gameSystem.regionRulesPassed()) {
-                    //Adjust tunnels edges
-                    if (b && (b.isTunnel)) adjustEnd(b, p)
-                    if (a && (a.isTunnel)) adjustBegin(a, p)
-
-                    if (isTunnel && pathRegionLevel>laserRegion) {
-
-                        if (started) ctx.stroke();
-                        ctx.beginPath();
+                const color = colorOverride || curr.color || "#ff0000";
+                const pathRegionLevel = REGION_CONFIG[curr.regionId ?? 0]?.level ?? 0
+                const laserRegion = (this._event?._regionLevel ?? 0)
+                //Skip tunnels entirely
+                if (curr.isTunnel && !$gameSystem.regionRulesPassed()&& pathRegionLevel > laserRegion) {
+                    if (started) {
+                        ctx.stroke();
                         started = false;
-                        lastColor = null;
-                        continue;
-
                     }
-
-                
-}
-
-
-                // -------------------------
-                // color / logical breaks
-                // -------------------------
-                const colorChanged = lastColor && lastColor !== color;
-
-                const breakStroke =
-                    pRaw.type === "mirror" ||
-                    pRaw.type === "start";
-
-                if (!started || colorChanged || breakStroke) {
-                    if (started) ctx.stroke();
-
-                    ctx.beginPath();
-                    ctx.moveTo(p.x, p.y);
-
-                    started = true;
-                    lastColor = color;
-
-                    ctx.strokeStyle = color;
                     continue;
                 }
 
-                // -------------------------
-                // normal continuation
-                // -------------------------
-                ctx.lineTo(p.x, p.y);
-            }
+                const colorChanged = lastColor !== null && lastColor !== color;
 
+                if (!started || colorChanged) {
+                    if (started) ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(ppx.x, ppx.y);
+
+                    ctx.strokeStyle = color;
+
+                    started = true;
+                    lastColor = color;
+                }
+                //Always draw the segment
+                ctx.lineTo(cpx.x, cpx.y);
+
+                //Stop at boundaries
+                if (curr.type === "mirror" || curr.type === "end") {
+                    ctx.stroke();
+                    started = false;
+                }
+            }
             if (started) ctx.stroke();
         };
 
@@ -732,7 +725,7 @@
 
 
         // -------------------------
-        // layers (glow → main → core)
+        // layers (glow  main  core) based on the tile sprite
         // -------------------------
 
         drawPolyline(10, 0.15);            // glow
@@ -745,8 +738,6 @@
     const _SS_createTilemap = Spriteset_Map.prototype.createTilemap;
     Spriteset_Map.prototype.createTilemap = function () {
         _SS_createTilemap.call(this);
-
-        // we inject directly into tilemap
         this._laserSprites = [];
     };
 
@@ -757,7 +748,7 @@
         this.updateLasers();
     };
 
-    // helper (you already had this, keep it)
+
     Spriteset_Map.prototype.findCharacterSprite = function (character) {
         return this._characterSprites.find(s => s._character === character);
     };
