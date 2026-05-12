@@ -1202,7 +1202,7 @@
                 //Check if the move direction is allowed
                 if (!rules.includes(d)) return false;
                 //Check if the next tile is actually passable (not a wall or obstacle)  
-                return SS_isMapPassable.call(this, x2, y2, d);
+                return $gameMap.isPassable(x2, y2, d)//SS_isMapPassable.call(this, x2, y2, d);
             }
         }
         //Default: use normal passability
