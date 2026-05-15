@@ -1023,7 +1023,7 @@
     Game_CharacterBase.prototype.screenZ = function () {
         const level = (this.regionLevel() ?? 0) * 0.01
         const offset = 0.001;
-        if (level == 0 && !this instanceof Game_Event) return SS_screenZ.call(this)
+        if (level == 0 && (!this )instanceof Game_Event) return SS_screenZ.call(this)
 
         if (this instanceof Game_Event) {
             if (this._elevator) return 3 + level
@@ -1073,8 +1073,7 @@
 
     Game_CharacterBase.prototype._handleRegionChange = function (oldX, oldY, newX, newY) {
         if (this._elevator) return;
-        if (!(this instanceof Game_Player)) return;
-
+ 
         const oldRegionId = $gameMap.regionId(oldX, oldY);
         const newRegionId = $gameMap.regionId(newX, newY);
         const enterGate = !!REGION_LEVEL_GATE[newRegionId]
@@ -1083,7 +1082,7 @@
         //const transition = enterGate != leaveGate
         //if (!transition) return false
         if (oldRegionId === newRegionId) return;
-
+        if(!(enterGate || leaveGate)) return
         if (enterGate) {
             const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
             this.setRegionLevel(level);
@@ -1091,7 +1090,7 @@
         }
 
         if (leaveGate) {
-            if (REGION_CONFIG[newRegionId]) return
+            // if (REGION_CONFIG[newRegionId] && !enterGate) return
             const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
             this.setRegionLevel(level);
         }
@@ -1110,7 +1109,7 @@
 
         if (!$gameMap.isValid(x2, y2)) return false;
 
-        // First, check the original collision rules (walls, terrain, default events)
+        //Check the original collision rules (walls, terrain, default events)
         let canPassOriginal = SS_canPass.call(this, x, y, d);
 
         if (canPassOriginal) return true; // Tile is already passable
@@ -1143,20 +1142,20 @@
             const fromSpecial = !!REGION_CONFIG[regionId]?.skip || !!REGION_CONFIG[regionId]?.force;
             const toSpecial = !!REGION_CONFIG[nextRegionId]?.skip || !!REGION_CONFIG[nextRegionId]?.force;
 
-            // If neither tile is a gate or is not assigned → always allow
+            // If neither tile is a gate or is not assigned   always allow
             if (!(fromGate || toGate) && !(fromSpecial || toSpecial)) return true
 
-            // If moving between gate ↔ bridge → enforce same level
+            // If moving between gate and bridge  enforce same level
             if ((toBridge && fromGate) || (fromBridge && toGate)) return toLevel === fromLevel
 
-            //Any movement involving a gate (except gate ↔ bridge) is limited to ±1 level
+            //Any movement involving a gate (except gate and bridge) is limited to diff 1 level
             if ((fromGate || toGate) && (fromSpecial || toSpecial)) return Math.abs(toLevel - fromLevel) <= 1
 
-            // If moving between configured tiles → enforce same level
+            // If moving between configured tiles  enforce same level
             if (fromSpecial && toSpecial) return toLevel === fromLevel
-            // If moving between configured tiles → enforce same level
+            // If moving between configured tiles  enforce same level
             if (fromBridge && toSpecial) return toLevel === fromLevel
-            // If moving between configured tiles → enforce same level
+            // If moving between configured tiles  enforce same level
             if (fromSpecial && toBridge) return toLevel === fromLevel
 
             return true
@@ -1463,7 +1462,7 @@
         const nextRegionId = $gameMap.regionId(event.x + point.x, event.y + point.y)
         const nextlevel = REGION_CONFIG[nextRegionId]?.level ?? 0
 
-        const currentRegionId = $gameMap.regionId($gamePlayer._x, $gamePlayer._y)
+        const currentRegionId = $gameMap.regionId($gamePlayer.x, $gamePlayer.y)
         const currentlevel = REGION_CONFIG[currentRegionId]?.level ?? 0
 
 
