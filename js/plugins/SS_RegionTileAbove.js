@@ -1077,20 +1077,20 @@
 
         const oldRegionId = $gameMap.regionId(oldX, oldY);
         const newRegionId = $gameMap.regionId(newX, newY);
-        const EnterGate = !!REGION_LEVEL_GATE[newRegionId]
-        const LeaveGate = !!REGION_LEVEL_GATE[oldRegionId]
+        const enterGate = !!REGION_LEVEL_GATE[newRegionId]
+        const leaveGate = !!REGION_LEVEL_GATE[oldRegionId]
 
-        //const transition = EnterGate != LeaveGate
+        //const transition = enterGate != leaveGate
         //if (!transition) return false
         if (oldRegionId === newRegionId) return;
 
-        if (EnterGate) {
+        if (enterGate) {
             const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
             this.setRegionLevel(level);
             return
         }
 
-        if (LeaveGate) {
+        if (leaveGate) {
             if (REGION_CONFIG[newRegionId]) return
             const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
             this.setRegionLevel(level);
