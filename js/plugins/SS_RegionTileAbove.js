@@ -1080,9 +1080,9 @@
         const EnterGate = !!REGION_LEVEL_GATE[newRegionId]
         const LeaveGate = !!REGION_LEVEL_GATE[oldRegionId]
 
-        const transition = EnterGate != LeaveGate
-
-        if (!transition) return false
+        //const transition = EnterGate != LeaveGate
+        //if (!transition) return false
+        if (oldRegionId === newRegionId) return;
 
         if (EnterGate) {
             const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
