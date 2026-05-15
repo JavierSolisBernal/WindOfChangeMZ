@@ -1025,9 +1025,9 @@
         const offset = 0.001;
         if (level == 0 && !this instanceof Game_Event) return SS_screenZ.call(this)
 
-        if (this instanceof Game_Event) {        
-            if(this._elevator) return 3 + level
-         }
+        if (this instanceof Game_Event) {
+            if (this._elevator) return 3 + level
+        }
         return (this._priorityType * 2) + 1 + level + offset
     };
 
@@ -1056,31 +1056,49 @@
 
 
 
+
     Game_CharacterBase.prototype.updateRegionLogic = function () {
-        const x = this.x;
-        const y = this.y;
-        const region = this.regionId();
+        const newX = this.x;
+        const newY = this.y;
 
-        this._regionCount = this._regionCount || {};
+        if (newX !== this._lastX || newY !== this._lastY) {
 
-        // Only trigger when character moves
-        if (x !== this._lastX || y !== this._lastY) {
-            this._lastX = x;
-            this._lastY = y;
-            this._handleRegionChange(region);
+            const oldX = this._lastX;
+            const oldY = this._lastY;
+            this._lastX = newX;
+            this._lastY = newY;
+            this._handleRegionChange(oldX, oldY, newX, newY);
         }
     };
 
+    Game_CharacterBase.prototype._handleRegionChange = function (oldX, oldY, newX, newY) {
+        if (this._elevator) return;
+        if (!(this instanceof Game_Player)) return;
 
-    Game_CharacterBase.prototype._handleRegionChange = function (region) {
-        if (this._elevator) return
-        if(!REGION_CONFIG[region]) return
-        if (!REGION_LEVEL_GATE[region] && REGION_CONFIG[region]) return;
-        const level = REGION_LEVEL_GATE[region]?.level ?? 0
-        this.setRegionLevel(level);
-    }
+        const oldRegionId = $gameMap.regionId(oldX, oldY);
+        const newRegionId = $gameMap.regionId(newX, newY);
+        const EnterGate = !!REGION_LEVEL_GATE[newRegionId]
+        const LeaveGate = !!REGION_LEVEL_GATE[oldRegionId]
+
+        const transition = EnterGate != LeaveGate
+
+        if (!transition) return false
+
+        if (EnterGate) {
+            const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
+            this.setRegionLevel(level);
+            return
+        }
+
+        if (LeaveGate) {
+            if (REGION_CONFIG[newRegionId]) return
+            const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
+            this.setRegionLevel(level);
+        }
 
 
+
+    };
 
     // Backup original method
     const SS_canPass = Game_CharacterBase.prototype.canPass;
@@ -1117,7 +1135,7 @@
 
     const GateRules = {
 
-        canMove(fromLevel, toLevel, regionId, nextRegionId, dir) {
+        canMove(charLevel, fromLevel, toLevel, regionId, nextRegionId, dir) {
             const fromGate = !!REGION_LEVEL_GATE[regionId];
             const toGate = !!REGION_LEVEL_GATE[nextRegionId];
             const toBridge = !!REGION_CONFIG[nextRegionId];
@@ -1162,10 +1180,16 @@
             ?? REGION_CONFIG[nextRegionId]?.level
             ?? 0;
 
+        const currentlevel = REGION_LEVEL_GATE[regionId]?.level
+            ?? REGION_CONFIG[regionId]?.level
+            ?? 0;
+
+
 
 
         const canMove = GateRules.canMove(
             myLevel,
+            currentlevel,
             nextLevel,
             regionId,
             nextRegionId,
@@ -1240,7 +1264,7 @@
     };
 
 
-   
+
 
 
     // Extend Game_Event to read meta for region level
@@ -1256,7 +1280,7 @@
 
         // Check the note for <level:n>
         const levelMeta = this.event().note.match(/<level:(\d+)>/i);
-       
+
         if (levelMeta) {
             this._regionLevel = Number(levelMeta[1]);
         }
@@ -1271,7 +1295,7 @@
 
     };
 
-     
+
 
 
     //CHECK IF THE EVENT IS ON THE SAME MAP
@@ -1458,7 +1482,7 @@
         var point = new Point(x, y);
         var signX = Math.sign(x);
         var signY = Math.sign(y);
- 
+
         if (Math.abs(x) > 0) {
             const i = Math.abs(x) - 1
             point.set(this.x + i * signX, this.y + y - 1);
@@ -1474,6 +1498,6 @@
 
 
 
- 
+
 
 })();
