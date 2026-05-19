@@ -1090,7 +1090,7 @@
         }
 
         if (leaveGate) {
-            // if (REGION_CONFIG[newRegionId] && !enterGate) return
+            if (REGION_CONFIG[newRegionId] && !enterGate) return
             const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
             this.setRegionLevel(level);
         }
@@ -1142,6 +1142,8 @@
             const fromSpecial = !!REGION_CONFIG[regionId]?.skip || !!REGION_CONFIG[regionId]?.force;
             const toSpecial = !!REGION_CONFIG[nextRegionId]?.skip || !!REGION_CONFIG[nextRegionId]?.force;
 
+
+ 
             // If neither tile is a gate or is not assigned   always allow
             if (!(fromGate || toGate) && !(fromSpecial || toSpecial)) return true
 
