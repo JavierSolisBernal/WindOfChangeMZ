@@ -1123,16 +1123,17 @@
         const sameLevelBlocking = eventsAtTile.some(event =>
             event.isNormalPriority() && (event.regionLevel() === myLevel)
         );
-
-        // If no same-level blocking event exists and the map tile itself is passable, allow movement
+         // If no same-level blocking event exists and the map tile itself is passable, allow movement
         if (!sameLevelBlocking && this.isMapPassable(x, y, d)) return true;
-
+        
         // Otherwise, blocked
         return canPassOriginal;
     };
 
 
     const GateRules = {
+
+     
 
         canMove(charLevel, fromLevel, toLevel, regionId, nextRegionId, dir) {
             const fromGate = !!REGION_LEVEL_GATE[regionId];
@@ -1153,6 +1154,7 @@
             //Any movement involving a gate (except gate and bridge) is limited to diff 1 level
             if ((fromGate || toGate) && (fromSpecial || toSpecial)) return Math.abs(toLevel - fromLevel) <= 1
 
+            
             // If moving between configured tiles  enforce same level
             if (fromSpecial && toSpecial) return toLevel === fromLevel
             // If moving between configured tiles  enforce same level
@@ -1173,6 +1175,9 @@
         const x2 = $gameMap.roundXWithDirection(x, d);
         const y2 = $gameMap.roundYWithDirection(y, d);
         const d2 = this.reverseDir(d);
+ 
+
+
 
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
@@ -1232,6 +1237,7 @@
         }
         //Default: use normal passability
         return SS_isMapPassable.call(this, x, y, d);
+         
     };
 
     // Ladder
