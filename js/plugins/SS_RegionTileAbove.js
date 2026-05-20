@@ -1136,11 +1136,11 @@
         canPass(charLevel, c, n){
             
 
-            const toBridge = !!REGION_CONFIG[c.region];
-            const fromBridge = !!REGION_CONFIG[n.region];
+            const toBridge = !!REGION_CONFIG[c.region] && !REGION_CONFIG[c.region]?.skip && !REGION_CONFIG[c.region]?.force;
+            const fromBridge = !!REGION_CONFIG[n.region]&& !REGION_CONFIG[n.region]?.skip && !REGION_CONFIG[n.region]?.force;
 
 
-            //if(charLevel<n.level) return true
+            if(charLevel<=n.level && (toBridge||fromBridge)) return true
             return false
         },
 
