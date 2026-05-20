@@ -1133,7 +1133,16 @@
 
     const GateRules = {
 
-     
+        canPass(charLevel, c, n){
+            
+
+            const toBridge = !!REGION_CONFIG[c.region];
+            const fromBridge = !!REGION_CONFIG[n.region];
+
+
+            //if(charLevel<n.level) return true
+            return false
+        },
 
         canMove(charLevel, fromLevel, toLevel, regionId, nextRegionId, dir) {
             const fromGate = !!REGION_LEVEL_GATE[regionId];
@@ -1175,13 +1184,33 @@
         const x2 = $gameMap.roundXWithDirection(x, d);
         const y2 = $gameMap.roundYWithDirection(y, d);
         const d2 = this.reverseDir(d);
- 
+        const fallback=SS_isMapPassable.call(this, x, y, d);
+        const charLevel = this.regionLevel();
 
+        const current={}
+        current.x=x
+        current.y=y
+        current.d=d
+        current.region=$gameMap.regionId(x, y);
+        current.level=REGION_LEVEL_GATE[current.region]?.level
+            ?? REGION_CONFIG[current.region]?.level
+            ?? 0;
 
+        const next={}
+        next.x=x2
+        next.y=y2
+        next.d=d2
+        next.region=$gameMap.regionId(x2, y2);
+        next.level=REGION_LEVEL_GATE[next.region]?.level
+            ?? REGION_CONFIG[next.region]?.level
+            ?? 0;
 
+        const canPass=GateRules.canPass(charLevel, current, next)
+        if(canPass) return true
+        return fallback /*
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
-        const myLevel = this.regionLevel();
+       
         const nextLevel = REGION_LEVEL_GATE[nextRegionId]?.level
             ?? REGION_CONFIG[nextRegionId]?.level
             ?? 0;
@@ -1237,7 +1266,7 @@
         }
         //Default: use normal passability
         return SS_isMapPassable.call(this, x, y, d);
-         
+         */
     };
 
     // Ladder
