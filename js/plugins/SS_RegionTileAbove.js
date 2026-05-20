@@ -1023,7 +1023,7 @@
     Game_CharacterBase.prototype.screenZ = function () {
         const level = (this.regionLevel() ?? 0) * 0.01
         const offset = 0.001;
-        if (level == 0 && (!this )instanceof Game_Event) return SS_screenZ.call(this)
+        if (level == 0 && (!this) instanceof Game_Event) return SS_screenZ.call(this)
 
         if (this instanceof Game_Event) {
             if (this._elevator) return 3 + level
@@ -1073,7 +1073,7 @@
 
     Game_CharacterBase.prototype._handleRegionChange = function (oldX, oldY, newX, newY) {
         if (this._elevator) return;
- 
+
         const oldRegionId = $gameMap.regionId(oldX, oldY);
         const newRegionId = $gameMap.regionId(newX, newY);
         const enterGate = !!REGION_LEVEL_GATE[newRegionId]
@@ -1082,7 +1082,7 @@
         //const transition = enterGate != leaveGate
         //if (!transition) return false
         if (oldRegionId === newRegionId) return;
-        if(!(enterGate || leaveGate)) return
+        if (!(enterGate || leaveGate)) return
         if (enterGate) {
             const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
             this.setRegionLevel(level);
@@ -1123,9 +1123,9 @@
         const sameLevelBlocking = eventsAtTile.some(event =>
             event.isNormalPriority() && (event.regionLevel() === myLevel)
         );
-         // If no same-level blocking event exists and the map tile itself is passable, allow movement
+        // If no same-level blocking event exists and the map tile itself is passable, allow movement
         if (!sameLevelBlocking && this.isMapPassable(x, y, d)) return true;
-        
+
         // Otherwise, blocked
         return canPassOriginal;
     };
@@ -1133,14 +1133,19 @@
 
     const GateRules = {
 
-        canPass(charLevel, c, n){
-            
+        canPass(charLevel, c, n) {
+            const nextRegionId=n.region
+            const regionId=c.region
 
-            const toBridge = !!REGION_CONFIG[c.region] && !REGION_CONFIG[c.region]?.skip && !REGION_CONFIG[c.region]?.force;
-            const fromBridge = !!REGION_CONFIG[n.region]&& !REGION_CONFIG[n.region]?.skip && !REGION_CONFIG[n.region]?.force;
+            const toBridge = !!REGION_CONFIG[nextRegionId];
+            const fromBridge = !!REGION_CONFIG[regionId];
+            const fromSpecial = !!REGION_CONFIG[regionId]?.skip || !!REGION_CONFIG[regionId]?.force;
+            const toSpecial = !!REGION_CONFIG[nextRegionId]?.skip || !!REGION_CONFIG[nextRegionId]?.force;
 
+            const flagbelow=charLevel<=nextRegionId
 
-            if(charLevel<=n.level && (toBridge||fromBridge)) return true
+ 
+
             return false
         },
 
@@ -1153,7 +1158,7 @@
             const toSpecial = !!REGION_CONFIG[nextRegionId]?.skip || !!REGION_CONFIG[nextRegionId]?.force;
 
 
- 
+
             // If neither tile is a gate or is not assigned   always allow
             if (!(fromGate || toGate) && !(fromSpecial || toSpecial)) return true
 
@@ -1163,7 +1168,7 @@
             //Any movement involving a gate (except gate and bridge) is limited to diff 1 level
             if ((fromGate || toGate) && (fromSpecial || toSpecial)) return Math.abs(toLevel - fromLevel) <= 1
 
-            
+
             // If moving between configured tiles  enforce same level
             if (fromSpecial && toSpecial) return toLevel === fromLevel
             // If moving between configured tiles  enforce same level
@@ -1184,29 +1189,29 @@
         const x2 = $gameMap.roundXWithDirection(x, d);
         const y2 = $gameMap.roundYWithDirection(y, d);
         const d2 = this.reverseDir(d);
-        const fallback=SS_isMapPassable.call(this, x, y, d);
+        const fallback = SS_isMapPassable.call(this, x, y, d);
         const charLevel = this.regionLevel();
 
-        const current={}
-        current.x=x
-        current.y=y
-        current.d=d
-        current.region=$gameMap.regionId(x, y);
-        current.level=REGION_LEVEL_GATE[current.region]?.level
+        const current = {}
+        current.x = x
+        current.y = y
+        current.d = d
+        current.region = $gameMap.regionId(x, y);
+        current.level = REGION_LEVEL_GATE[current.region]?.level
             ?? REGION_CONFIG[current.region]?.level
             ?? 0;
 
-        const next={}
-        next.x=x2
-        next.y=y2
-        next.d=d2
-        next.region=$gameMap.regionId(x2, y2);
-        next.level=REGION_LEVEL_GATE[next.region]?.level
+        const next = {}
+        next.x = x2
+        next.y = y2
+        next.d = d2
+        next.region = $gameMap.regionId(x2, y2);
+        next.level = REGION_LEVEL_GATE[next.region]?.level
             ?? REGION_CONFIG[next.region]?.level
             ?? 0;
 
-        const canPass=GateRules.canPass(charLevel, current, next)
-        if(canPass) return true
+        const canPass = GateRules.canPass(charLevel, current, next)
+        if (canPass) return true
         return fallback /*
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
