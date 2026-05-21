@@ -1134,17 +1134,21 @@
     const GateRules = {
 
         canPass(charLevel, c, n) {
-            const nextRegionId=n.region
-            const regionId=c.region
+            const nextRegionId = n.region
+            const regionId = c.region
+            const fromCfg = REGION_CONFIG[regionId];
+            const toCfg = REGION_CONFIG[nextRegionId];
 
-            const toBridge = !!REGION_CONFIG[nextRegionId];
-            const fromBridge = !!REGION_CONFIG[regionId];
-            const fromSpecial = !!REGION_CONFIG[regionId]?.skip || !!REGION_CONFIG[regionId]?.force;
-            const toSpecial = !!REGION_CONFIG[nextRegionId]?.skip || !!REGION_CONFIG[nextRegionId]?.force;
 
-            const flagbelow=charLevel<=nextRegionId
 
- 
+            const fromIsBridge = fromCfg && !(fromCfg?.force || fromCfg?.skip);
+            const toIsBridge = toCfg && !(toCfg?.force || toCfg?.skip);
+
+            
+
+            if(toIsBridge && fromIsBridge) return true
+            if(toIsBridge && !fromCfg) return true
+            if(fromIsBridge && !toCfg) return true
 
             return false
         },
