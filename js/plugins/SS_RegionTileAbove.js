@@ -1133,24 +1133,49 @@
 
     const GateRules = {
 
-        canPass(charLevel, c, n) {
+        canPass(charLevel, c, n, fallback) {
             const nextRegionId = n.region
             const regionId = c.region
-            const fromCfg = REGION_CONFIG[regionId];
+
+
+            const fromCfg = REGION_CONFIG[regionId]; 
             const toCfg = REGION_CONFIG[nextRegionId];
+        
+            const fromGate = !!REGION_LEVEL_GATE[regionId];
+            const toGate = !!REGION_LEVEL_GATE[nextRegionId];
 
+            const fromBridge = !!fromCfg && !(fromCfg.force || fromCfg.skip);
+            const toBridge = !!toCfg &&  !(toCfg.force || toCfg.skip);
 
-
-            const fromIsBridge = fromCfg && !(fromCfg?.force || fromCfg?.skip);
-            const toIsBridge = toCfg && !(toCfg?.force || toCfg?.skip);
-
+            const fromSpecial = !!fromCfg && (fromCfg.force || fromCfg.skip);
+            const toSpecial = !!toCfg && (toCfg.force || toCfg.skip);
             
+             //ANY operation not from bridges return default
+            if (!fromBridge && !toBridge)return fallback;
 
+
+            const requiredLevel = n.level ?? 0;
+          
+            if(fromBridge && toBridge && charLevel>=requiredLevel) return fallback
+
+            //GOING TO BRIDGE FROM NON REGISTERES
+            if(toBridge && !fromSpecial && charLevel<requiredLevel){
+               return true  
+            }
+
+            if(fromBridge && !toSpecial){
+                 return   charLevel === requiredLevel
+            }
+
+            // If moving between gate and bridge  enforce same level
+            //  if ((toBridge && fromGate) || (fromBridge && toGate)) return toLevel === fromLevel
+
+            /*
             if(toIsBridge && fromIsBridge) return true
             if(toIsBridge && !fromCfg) return true
             if(fromIsBridge && !toCfg) return true
-
-            return false
+            */
+            return fallback
         },
 
         canMove(charLevel, fromLevel, toLevel, regionId, nextRegionId, dir) {
@@ -1180,7 +1205,7 @@
             // If moving between configured tiles  enforce same level
             if (fromSpecial && toBridge) return toLevel === fromLevel
 
-            return true
+            return false
 
 
         }
@@ -1214,9 +1239,8 @@
             ?? REGION_CONFIG[next.region]?.level
             ?? 0;
 
-        const canPass = GateRules.canPass(charLevel, current, next)
-        if (canPass) return true
-        return fallback /*
+        return GateRules.canPass(charLevel, current, next, fallback)
+        /*
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
        
