@@ -1156,10 +1156,16 @@
 
             const requiredLevel = n.level ?? 0;
           
+            
+            const position= charLevel<=requiredLevel? "below":"above";
+
+
+            //MOVEMENT ON BRIDGE
             if(fromBridge && toBridge && charLevel>=requiredLevel) return fallback
 
-            //GOING TO BRIDGE FROM NON REGISTERES
+            //GOING TO BRIDGE FROM NORMAL TILES REQUIRE LOWER LEVEL
             if(toBridge && !fromSpecial && charLevel<requiredLevel){
+               // return toCfg[position].includes(d)
                return true  
             }
 
