@@ -1133,10 +1133,15 @@
 
     const GateRules = {
 
-        canPass(charLevel, c, n, fallback) {
-            const nextRegionId = n.region
-            const regionId = c.region
+        canPass(x, y, d, d2, charLevel, fallback) {
+             
+            const x2 = $gameMap.roundXWithDirection(x, d);
+            const y2 = $gameMap.roundYWithDirection(y, d);
+ 
+            const nextRegionId = $gameMap.regionId(x2,y2)
+            const regionId = $gameMap.regionId(x,y)
 
+            return fallback
 
             const fromCfg = REGION_CONFIG[regionId]; 
             const toCfg = REGION_CONFIG[nextRegionId];
@@ -1157,20 +1162,30 @@
             const requiredLevel = n.level ?? 0;
           
             
-            const position= charLevel<=requiredLevel? "below":"above";
+            const position= charLevel<requiredLevel? "below":"above";
 
 
             //MOVEMENT ON BRIDGE
-            if(fromBridge && toBridge && charLevel>=requiredLevel) return fallback
+            if(fromBridge && toBridge && position=="above") return fallback
 
             //GOING TO BRIDGE FROM NORMAL TILES REQUIRE LOWER LEVEL
-            if(toBridge && !fromSpecial && charLevel<requiredLevel){
-               // return toCfg[position].includes(d)
-               return true  
+            if(toBridge && !fromSpecial){
+               return charLevel<requiredLevel  
             }
 
-            if(fromBridge && !toSpecial){
-                 return   charLevel === requiredLevel
+
+            if(fromBridge){
+            const rules = fromCfg?.[position];
+            console.log(fromCfg)
+            if (rules) {
+                //Check if the move direction is allowed
+                if (!rules.includes(d)) return false;
+                //Check if the next tile is actually passable (not a wall or obstacle)  
+                
+            }
+
+                return true
+                /// return   charLevel === requiredLevel
             }
 
             // If moving between gate and bridge  enforce same level
@@ -1226,26 +1241,9 @@
         const d2 = this.reverseDir(d);
         const fallback = SS_isMapPassable.call(this, x, y, d);
         const charLevel = this.regionLevel();
+     
 
-        const current = {}
-        current.x = x
-        current.y = y
-        current.d = d
-        current.region = $gameMap.regionId(x, y);
-        current.level = REGION_LEVEL_GATE[current.region]?.level
-            ?? REGION_CONFIG[current.region]?.level
-            ?? 0;
-
-        const next = {}
-        next.x = x2
-        next.y = y2
-        next.d = d2
-        next.region = $gameMap.regionId(x2, y2);
-        next.level = REGION_LEVEL_GATE[next.region]?.level
-            ?? REGION_CONFIG[next.region]?.level
-            ?? 0;
-
-        return GateRules.canPass(charLevel, current, next, fallback)
+        return GateRules.canPass(x,y,d, d2, this.regionLevel(), fallback)
         /*
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
