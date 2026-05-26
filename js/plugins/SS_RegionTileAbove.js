@@ -1134,55 +1134,69 @@
     const GateRules = {
 
         canPass(x, y, d, d2, charLevel, fallback) {
-             
+
             const x2 = $gameMap.roundXWithDirection(x, d);
             const y2 = $gameMap.roundYWithDirection(y, d);
- 
-            const nextRegionId = $gameMap.regionId(x2,y2)
-            const regionId = $gameMap.regionId(x,y)
 
-            return fallback
+            const nextRegionId = $gameMap.regionId(x2, y2)
+            const regionId = $gameMap.regionId(x, y)
 
-            const fromCfg = REGION_CONFIG[regionId]; 
+            const fromCfg = REGION_CONFIG[regionId];
             const toCfg = REGION_CONFIG[nextRegionId];
-        
+
             const fromGate = !!REGION_LEVEL_GATE[regionId];
             const toGate = !!REGION_LEVEL_GATE[nextRegionId];
 
+
             const fromBridge = !!fromCfg && !(fromCfg.force || fromCfg.skip);
-            const toBridge = !!toCfg &&  !(toCfg.force || toCfg.skip);
+            const toBridge = !!toCfg && !(toCfg.force || toCfg.skip);
 
             const fromSpecial = !!fromCfg && (fromCfg.force || fromCfg.skip);
             const toSpecial = !!toCfg && (toCfg.force || toCfg.skip);
-            
-             //ANY operation not from bridges return default
-            if (!fromBridge && !toBridge)return fallback;
+
+            //ANY operation not from bridges return default
+            if (!fromBridge && !toBridge) return fallback;
 
 
-            const requiredLevel = n.level ?? 0;
-          
-            
-            const position= charLevel<requiredLevel? "below":"above";
+            const requiredLevel = toCfg?.level ?? 0;
+
+
+            const position = charLevel < requiredLevel ? "below" : "above";
 
 
             //MOVEMENT ON BRIDGE
-            if(fromBridge && toBridge && position=="above") return fallback
+            if (fromBridge && toBridge && position == "above") return fallback
+
 
             //GOING TO BRIDGE FROM NORMAL TILES REQUIRE LOWER LEVEL
-            if(toBridge && !fromSpecial){
-               return charLevel<requiredLevel  
+            if (toBridge && !fromSpecial) {
+                return charLevel < requiredLevel
             }
 
+            return fallback
 
-            if(fromBridge){
-            const rules = fromCfg?.[position];
-            console.log(fromCfg)
-            if (rules) {
-                //Check if the move direction is allowed
-                if (!rules.includes(d)) return false;
-                //Check if the next tile is actually passable (not a wall or obstacle)  
-                
-            }
+
+
+
+           
+
+          
+
+
+   
+
+          
+
+
+            if (fromBridge) {
+                const rules = fromCfg?.[position];
+                console.log(fromCfg)
+                if (rules) {
+                    //Check if the move direction is allowed
+                    if (!rules.includes(d)) return false;
+                    //Check if the next tile is actually passable (not a wall or obstacle)  
+
+                }
 
                 return true
                 /// return   charLevel === requiredLevel
@@ -1241,9 +1255,9 @@
         const d2 = this.reverseDir(d);
         const fallback = SS_isMapPassable.call(this, x, y, d);
         const charLevel = this.regionLevel();
-     
 
-        return GateRules.canPass(x,y,d, d2, this.regionLevel(), fallback)
+
+        return GateRules.canPass(x, y, d, d2, this.regionLevel(), fallback)
         /*
         const regionId = $gameMap.regionId(x, y);
         const nextRegionId = $gameMap.regionId(x2, y2);
