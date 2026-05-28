@@ -1151,66 +1151,31 @@
             const fromBridge = !!fromCfg && !(fromCfg.force || fromCfg.skip);
             const toBridge = !!toCfg && !(toCfg.force || toCfg.skip);
 
-            const fromSpecial = !!fromCfg && (fromCfg.force || fromCfg.skip);
-            const toSpecial = !!toCfg && (toCfg.force || toCfg.skip);
+            const fromSpecial = !!fromCfg && !!(fromCfg.force || fromCfg.skip);
+            const toSpecial = !!toCfg && !!(toCfg.force || toCfg.skip);
 
-            //ANY operation not from bridges return default
-            if (!fromBridge && !toBridge) return fallback;
+            if(!fromCfg && !toCfg) return fallback
 
+            const targetLevel = toCfg?.level ?? 0;
+            const position=charLevel <= targetLevel? "below":"above"
 
-            const requiredLevel = toCfg?.level ?? 0;
-
-
-            const position = charLevel < requiredLevel ? "below" : "above";
-
-
-            //MOVEMENT ON BRIDGE
-            if (fromBridge && toBridge && position == "above") return fallback
-
-
-            //GOING TO BRIDGE FROM NORMAL TILES REQUIRE LOWER LEVEL
-            if (toBridge && !fromSpecial) {
-                return charLevel < requiredLevel
-            }
-
-            return fallback
+            // If moving between gate and bridge  enforce level diff of 1 
+            if (((toBridge && fromGate) || (fromBridge && toGate))) return  Math.abs(charLevel-targetLevel)<=1
+            //MOVING TO A BRIDGE FROM BELOW
+            if(toBridge && !fromSpecial) return charLevel < targetLevel
+            //MOVING FROM A BRIDGE FROM BELOW
+            if(fromBridge && !toSpecial &&  charLevel <= targetLevel) return !!fromCfg?.[position]?.includes(d2)
+                
+            //MOVING FROM BRIDGE TO CFG NEEDS SAME LEVEL
+            if(fromBridge && toSpecial &&  charLevel === targetLevel) return true
+            //MOVING FROM CFG TO BRIDGE NEEDS SAME LEVEL
+            if(fromSpecial && toBridge &&  charLevel === targetLevel) return true
+            //MOVING BETWEEN SPECIALS NEEDS SAME LEVEL
+            if(fromSpecial && toSpecial &&  charLevel === targetLevel ) return true
 
 
 
-
-           
-
-          
-
-
-   
-
-          
-
-
-            if (fromBridge) {
-                const rules = fromCfg?.[position];
-                console.log(fromCfg)
-                if (rules) {
-                    //Check if the move direction is allowed
-                    if (!rules.includes(d)) return false;
-                    //Check if the next tile is actually passable (not a wall or obstacle)  
-
-                }
-
-                return true
-                /// return   charLevel === requiredLevel
-            }
-
-            // If moving between gate and bridge  enforce same level
-            //  if ((toBridge && fromGate) || (fromBridge && toGate)) return toLevel === fromLevel
-
-            /*
-            if(toIsBridge && fromIsBridge) return true
-            if(toIsBridge && !fromCfg) return true
-            if(fromIsBridge && !toCfg) return true
-            */
-            return fallback
+            return false
         },
 
         canMove(charLevel, fromLevel, toLevel, regionId, nextRegionId, dir) {
