@@ -357,6 +357,7 @@
     let rawRules = [];
     const REGION_LEVEL_GATE = {
         3: { level: 1 },
+        4: { level: 2 },
     }
 
     const tileMap = {
@@ -1154,61 +1155,54 @@
             const fromSpecial = !!fromCfg && !!(fromCfg.force || fromCfg.skip);
             const toSpecial = !!toCfg && !!(toCfg.force || toCfg.skip);
 
-            if(!fromCfg && !toCfg) return fallback
-
             const targetLevel = toCfg?.level ?? 0;
-            const position=charLevel <= targetLevel? "below":"above"
+            const position = charLevel <= targetLevel ? "below" : "above"
+
+            const gateLevel=REGION_LEVEL_GATE[nextRegionId]?.level??0
+
+            //movement between gates is let yo move between levels +- 1
+            if ((fromGate && toGate)||   (fromSpecial && toGate)) return Math.abs(charLevel - gateLevel) <= 1
+            
+            //if leaving a gate and go to a nonconfigured level difference is more than 1 block passage
+            if((fromGate && !toCfg) && Math.abs(charLevel - targetLevel)>1) return false
+
+            //if moving to gate from non configured level and the gate is level +-1 return default config
+            if((toGate && !fromCfg) && Math.abs(charLevel - gateLevel) <= 1 ) return fallback
+  
+            //if moving to gate from non configured level and the gate level is above a diference of 1 block
+            if((toGate && !fromCfg) && Math.abs(charLevel - gateLevel) > 1 ) return false 
+
+
+            //if nothing is configured return default
+            if (!fromCfg && !toCfg) return fallback
+
+            
 
             // If moving between gate and bridge  enforce level diff of 1 
-            if (((toBridge && fromGate) || (fromBridge && toGate))) return  Math.abs(charLevel-targetLevel)<=1
+            if (((toBridge && fromGate) || (fromBridge && toGate))) return Math.abs(charLevel - targetLevel) <= 1
+
+
+            // If moving between gate and special  enforce level diff of 1 
+            if (((toSpecial && fromGate) || (fromSpecial && toGate))) return Math.abs(charLevel - targetLevel) <= 1
+
             //MOVING TO A BRIDGE FROM BELOW
-            if(toBridge && !fromSpecial) return charLevel < targetLevel
+            if (toBridge && !fromSpecial) return charLevel < targetLevel
             //MOVING FROM A BRIDGE FROM BELOW
-            if(fromBridge && !toSpecial &&  charLevel <= targetLevel) return !!fromCfg?.[position]?.includes(d2)
-                
+            if (fromBridge && !toSpecial && charLevel <= targetLevel) return !!fromCfg?.[position]?.includes?.(d2)
+
             //MOVING FROM BRIDGE TO CFG NEEDS SAME LEVEL
-            if(fromBridge && toSpecial &&  charLevel === targetLevel) return true
+            if (fromBridge && toSpecial && charLevel === targetLevel) return true
             //MOVING FROM CFG TO BRIDGE NEEDS SAME LEVEL
-            if(fromSpecial && toBridge &&  charLevel === targetLevel) return true
+            if (fromSpecial && toBridge && charLevel === targetLevel) return true
             //MOVING BETWEEN SPECIALS NEEDS SAME LEVEL
-            if(fromSpecial && toSpecial &&  charLevel === targetLevel ) return true
+            if (fromSpecial && toSpecial && charLevel === targetLevel) return true
 
 
-
+            //if nothing else block
             return false
         },
 
-        canMove(charLevel, fromLevel, toLevel, regionId, nextRegionId, dir) {
-            const fromGate = !!REGION_LEVEL_GATE[regionId];
-            const toGate = !!REGION_LEVEL_GATE[nextRegionId];
-            const toBridge = !!REGION_CONFIG[nextRegionId];
-            const fromBridge = !!REGION_CONFIG[regionId];
-            const fromSpecial = !!REGION_CONFIG[regionId]?.skip || !!REGION_CONFIG[regionId]?.force;
-            const toSpecial = !!REGION_CONFIG[nextRegionId]?.skip || !!REGION_CONFIG[nextRegionId]?.force;
 
-
-
-            // If neither tile is a gate or is not assigned   always allow
-            if (!(fromGate || toGate) && !(fromSpecial || toSpecial)) return true
-
-            // If moving between gate and bridge  enforce same level
-            if ((toBridge && fromGate) || (fromBridge && toGate)) return toLevel === fromLevel
-
-            //Any movement involving a gate (except gate and bridge) is limited to diff 1 level
-            if ((fromGate || toGate) && (fromSpecial || toSpecial)) return Math.abs(toLevel - fromLevel) <= 1
-
-
-            // If moving between configured tiles  enforce same level
-            if (fromSpecial && toSpecial) return toLevel === fromLevel
-            // If moving between configured tiles  enforce same level
-            if (fromBridge && toSpecial) return toLevel === fromLevel
-            // If moving between configured tiles  enforce same level
-            if (fromSpecial && toBridge) return toLevel === fromLevel
-
-            return false
-
-
-        }
     };
 
 
@@ -1222,67 +1216,8 @@
         const charLevel = this.regionLevel();
 
 
-        return GateRules.canPass(x, y, d, d2, this.regionLevel(), fallback)
-        /*
-        const regionId = $gameMap.regionId(x, y);
-        const nextRegionId = $gameMap.regionId(x2, y2);
+        return GateRules.canPass(x, y, d, d2, charLevel, fallback)
        
-        const nextLevel = REGION_LEVEL_GATE[nextRegionId]?.level
-            ?? REGION_CONFIG[nextRegionId]?.level
-            ?? 0;
-
-        const currentlevel = REGION_LEVEL_GATE[regionId]?.level
-            ?? REGION_CONFIG[regionId]?.level
-            ?? 0;
-
-
-
-
-        const canMove = GateRules.canMove(
-            myLevel,
-            currentlevel,
-            nextLevel,
-            regionId,
-            nextRegionId,
-            d
-        );
-
-
-        if (!canMove) return false;
-
-
-
-        if (REGION_CONFIG[nextRegionId]?.skip) return SS_isMapPassable.call(this, x, y, d);
-
-        //let move inside the same region freely
-        if (regionId > 0 && regionId == nextRegionId) return $gameMap.isValid(x2, y2);
-        //Always allow entering a configured region
-
-
-
-        if (!REGION_CONFIG[regionId] && REGION_CONFIG[nextRegionId]) {
-            const rel = getRelativePosition(this, x, y); // above/below/same
-            const rules = REGION_CONFIG[nextRegionId]?.[rel];
-            if (REGION_CONFIG?.[nextRegionId]?.force) return SS_isMapPassable.call(this, x, y, d);
-            if (rules && !rules.includes(d2)) return false;
-            return true;
-        }
-
-        //Leaving a configured region: check region rules
-        if (REGION_CONFIG[regionId] && regionId !== nextRegionId) {
-            const rel = getRelativePosition(this, x2, y2); // above/below/same
-            const rules = REGION_CONFIG[regionId]?.[rel];
-
-            if (rules) {
-                //Check if the move direction is allowed
-                if (!rules.includes(d)) return false;
-                //Check if the next tile is actually passable (not a wall or obstacle)  
-                return $gameMap.isPassable(x2, y2, d)//SS_isMapPassable.call(this, x2, y2, d);
-            }
-        }
-        //Default: use normal passability
-        return SS_isMapPassable.call(this, x, y, d);
-         */
     };
 
     // Ladder
