@@ -1133,38 +1133,19 @@
 
 
     const GateRules = {
-
         canPass(x, y, d, d2, charLevel, fallback) {
+            const x2 = $gameMap.roundXWithDirection(x, d);
+            const y2 = $gameMap.roundYWithDirection(y, d);
+            const nextRegionId = $gameMap.regionId(x2, y2)
+            const regionId = $gameMap.regionId(x, y)
+            
+
+            return fallback
+        },
+        canPassBackup(x, y, d, d2, charLevel, fallback) {
 
 
-            // =====================================================
-            // GATE TRANSITION RULES
-            // =====================================================
 
-            // entering gate
-            // leaving gate
-            // gate-to-gate transitions
-
-            // =====================================================
-            // DEFAULT / EMPTY REGION RULES
-            // =====================================================
-
-            // empty -> empty
-            // empty -> gate
-            // gate -> empty
-
-            // =====================================================
-            // CONFIGURED REGION INTERACTIONS
-            // =====================================================
-
-            // gate <-> bridge
-            // gate <-> special
-            // bridge movement
-            // special movement
-
-            // =====================================================
-            // FINAL FAILSAFE
-            // =====================================================
 
             const x2 = $gameMap.roundXWithDirection(x, d);
             const y2 = $gameMap.roundYWithDirection(y, d);
