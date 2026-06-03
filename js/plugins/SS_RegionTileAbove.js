@@ -77,6 +77,18 @@
 * @type number
 * @default 1
 * 
+* @param type
+* @type select
+* @option Bridge
+* @value Bridge
+* @option Gate
+* @value Gate
+* @option Overlay
+* @value Overlay
+* @option None
+* @value None
+* @default Bridge
+*
 * @param alpha
 * @type number
 * @decimals 2
@@ -355,10 +367,7 @@
     const rawRegions = JSON.parse(params.Regions || "[]");
     const REGION_CONFIG = {};
     let rawRules = [];
-    const REGION_LEVEL_GATE = {
-        3: { level: 1 },
-        4: { level: 2 },
-    }
+     
 
     const tileMap = {
         "10,12": { setX: 6, setY: 11 }
@@ -395,17 +404,28 @@
         if (!id) continue;
 
         REGION_CONFIG[id] = {
+            type:obj.type,
             alpha: obj.alpha !== undefined ? Number(obj.alpha) : 1,
             level: obj.level !== undefined ? Number(obj.level) : 0,
-            force: obj.force === "true" || obj.force === true,
-            skip: obj.skip === "true" || obj.skip === true,
+            skip:obj.type=="None",
+            force:obj.type=="Overlay",
+            //force: obj.force === "true" || obj.force === true,
+            //skip: obj.skip === "true" || obj.skip === true,
             backgroundTile: obj.backgroundTile !== undefined ? Number(obj.backgroundTile) : undefined,
             below: parseDirectionStruct(obj.below),
             above: parseDirectionStruct(obj.above)
         };
+
+        if(obj.type=="Gate"){
+           delete REGION_CONFIG[id].alpha
+           delete REGION_CONFIG[id].skip
+           delete REGION_CONFIG[id].force
+           delete REGION_CONFIG[id].backgroundTile
+        }
+
     }
 
-
+ 
 
 
 
@@ -1077,6 +1097,11 @@
 
         const oldRegionId = $gameMap.regionId(oldX, oldY);
         const newRegionId = $gameMap.regionId(newX, newY);
+
+        const REGION_LEVEL_GATE= Object.fromEntries(
+        Object.entries(REGION_CONFIG).filter(([key, value]) => value.type === 'Gate')
+        );
+
         const enterGate = !!REGION_LEVEL_GATE[newRegionId]
         const leaveGate = !!REGION_LEVEL_GATE[oldRegionId]
 
