@@ -1105,8 +1105,7 @@
         const enterGate = !!REGION_LEVEL_GATE[newRegionId]
         const leaveGate = !!REGION_LEVEL_GATE[oldRegionId]
 
-        //const transition = enterGate != leaveGate
-        //if (!transition) return false
+    
         if (oldRegionId === newRegionId) return;
         if (!(enterGate || leaveGate)) return
         if (enterGate) {
@@ -1163,6 +1162,27 @@
             const y2 = $gameMap.roundYWithDirection(y, d);
             const nextRegionId = $gameMap.regionId(x2, y2)
             const regionId = $gameMap.regionId(x, y)
+
+            const fromCfg = REGION_CONFIG[regionId];
+            const toCfg = REGION_CONFIG[nextRegionId];
+            
+            
+            
+            const fromType=REGION_CONFIG[regionId]?.type
+            const toType=REGION_CONFIG[nextRegionId]?.type
+            const targetLevel = REGION_CONFIG[nextRegionId]?.level ?? 0;
+
+            if(!fromCfg && !toCfg)  return fallback
+
+            //Movement beetwen bridges is true
+            if(fromType=="Bridge" && toType=="Bridge") return charLevel<targetLevel
+
+            //To enter a bridge it needs to be <= level
+            if(toType=="Bridge" && fromType!="Bridge") return charLevel<=targetLevel
+
+            //To leave a bridge it needs to be = level so it doesn't jump lanes
+            if(toType!="Bridge" && fromType=="Bridge" &&  charLevel<targetLevel) return !!REGION_CONFIG?.["below"]?.includes?.(d2)
+
             
 
             return fallback
