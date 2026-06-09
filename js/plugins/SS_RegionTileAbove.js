@@ -1044,7 +1044,7 @@
     Game_CharacterBase.prototype.screenZ = function () {
         const level = (this.regionLevel() ?? 0) * 0.01
         const offset = 0.001;
-        if (level == 0 && (!this) instanceof Game_Event) return SS_screenZ.call(this)
+        if (level == 0 && !(this instanceof Game_Event)) return SS_screenZ.call(this)
 
         if (this instanceof Game_Event) {
             if (this._elevator) return 3 + level
@@ -1079,12 +1079,19 @@
 
 
     Game_CharacterBase.prototype.updateRegionLogic = function () {
+
+        if (this._lastX === undefined || this._lastY === undefined) {
+        this._lastX = this.x;
+        this._lastY = this.y;
+        return;
+        }
+
         const newX = this.x;
         const newY = this.y;
 
         if (newX !== this._lastX || newY !== this._lastY) {
 
-            const oldX = this._lastX;
+            const oldX = this._lastX ;
             const oldY = this._lastY;
             this._lastX = newX;
             this._lastY = newY;
@@ -1094,7 +1101,7 @@
 
     Game_CharacterBase.prototype._handleRegionChange = function (oldX, oldY, newX, newY) {
         if (this._elevator) return;
-
+        
         const oldRegionId = $gameMap.regionId(oldX, oldY);
         const newRegionId = $gameMap.regionId(newX, newY);
 
@@ -1192,7 +1199,7 @@
             //to enter a gate from default needs to be in range +-1 
             if([toType, fromType].includes("Gate") )   return  Math.abs(charLevel - targetLevel) <= 1
             
-            if(!toType?.includes["Gate", "Bridge"] && !fromType?.includes["Gate", "Bridge"] ) return charLevel == targetLevel
+            if(!toType?.includes("Gate", "Bridge") && !fromType?.includes("Gate", "Bridge") ) return charLevel == targetLevel
             
             return fallback
         },
