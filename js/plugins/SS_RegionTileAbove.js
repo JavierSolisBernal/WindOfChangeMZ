@@ -418,7 +418,7 @@
 
         if(obj.type=="Gate"){
            delete REGION_CONFIG[id].alpha
-           delete REGION_CONFIG[id].skip
+           REGION_CONFIG[id].skip=true
            delete REGION_CONFIG[id].force
            delete REGION_CONFIG[id].backgroundTile
         }
@@ -1107,7 +1107,9 @@
 
     
         if (oldRegionId === newRegionId) return;
+
         if (!(enterGate || leaveGate)) return
+        
         if (enterGate) {
             const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
             this.setRegionLevel(level);
@@ -1115,8 +1117,9 @@
         }
 
         if (leaveGate) {
-            if (REGION_CONFIG[newRegionId] && !enterGate) return
-            const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
+            if (REGION_CONFIG[newRegionId]?.type=="Bridge" && !enterGate) return
+            const level = REGION_CONFIG[newRegionId]?.level ?? 0
+            // const level = REGION_LEVEL_GATE[newRegionId]?.level ?? 0
             this.setRegionLevel(level);
         }
 
@@ -1174,17 +1177,23 @@
 
             if(!fromCfg && !toCfg)  return fallback
 
-            //Movement beetwen bridges is true
+            //Movement beetwen bridges check level also cannot jump lanes
             if(fromType=="Bridge" && toType=="Bridge") return charLevel<targetLevel
 
             //To enter a bridge it needs to be <= level
             if(toType=="Bridge" && fromType!="Bridge") return charLevel<=targetLevel
 
             //To leave a bridge it needs to be = level so it doesn't jump lanes
-            if(toType!="Bridge" && fromType=="Bridge" &&  charLevel<targetLevel) return !!REGION_CONFIG?.["below"]?.includes?.(d2)
-
+            if(toType!="Bridge" && fromType=="Bridge" &&  charLevel>targetLevel ) return fallback
+            //if leaving from below is locked to the directions of the region
+            if(toType!="Bridge" && fromType=="Bridge" &&  charLevel<=targetLevel && !toCfg ) return fromCfg?.["below"]?.includes?.(d2)
+           
+           
+            //to enter a gate from default needs to be in range +-1 
+            if([toType, fromType].includes("Gate") )   return  Math.abs(charLevel - targetLevel) <= 1
             
-
+            if(!toType?.includes["Gate", "Bridge"] && !fromType?.includes["Gate", "Bridge"] ) return charLevel == targetLevel
+            
             return fallback
         },
         canPassBackup(x, y, d, d2, charLevel, fallback) {
