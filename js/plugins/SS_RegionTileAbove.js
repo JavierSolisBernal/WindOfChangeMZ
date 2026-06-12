@@ -13,7 +13,38 @@
 * @desc Configuration for regions
 * @type struct<Region>[]
 *
+* @param TileMappings
+* @text Tile Mappings
+* @type struct<TileMapping>[]
+* @default []
 */
+
+/*~struct~TileMapping:
+ * @param targetX
+ * @text Target X
+ * @type number
+ * @min 0
+ * @default 0
+ *
+ * @param targetY
+ * @text Target Y
+ * @type number
+ * @min 0
+ * @default 0
+ *
+ * @param originX
+ * @text Origin X
+ * @type number
+ * @min 0
+ * @default 0
+ *
+ * @param originY
+ * @text Origin Y
+ * @type number
+ * @min 0
+ * @default 0
+ */
+
 
 /*~struct~Rule:
  * @param Parameter
@@ -148,7 +179,7 @@
     const pluginName = document.currentScript.src.match(/([^\/]+)\.js$/)[1];
     const params = PluginManager.parameters(pluginName);
 
-    const DEBUG = { tiles: false, character: true };
+    const DEBUG = { tiles: false, character: false };
     //HELPERS
 
     //ROUNDTOSIX
@@ -326,6 +357,20 @@
         }
     }
 
+    const tileMap = {};
+
+
+    JSON.parse(params.TileMappings || "[]").forEach(entry => {
+    const data = JSON.parse(entry);
+
+    tileMap[`${data.targetX},${data.targetY}`] = {
+        setX: Number(data.originX),
+        setY: Number(data.originY)
+    };
+    });
+ 
+
+
     //CHECK IF THE TILEMAP NEED REPLACING AT X, Y
     const getTileIdAt = (regionId, x, y) => {
         const mapping = tileMap[`${x},${y}`];
@@ -369,10 +414,7 @@
     let rawRules = [];
      
 
-    const tileMap = {
-        "10,12": { setX: 6, setY: 11 }
-    };
-
+  
 
     //ASSIGNATION OF PARAMETERS
     try {
@@ -1047,7 +1089,7 @@
         if (level == 0 && !(this instanceof Game_Event)) return SS_screenZ.call(this)
 
         if (this instanceof Game_Event) {
-            if (this._elevator) return 3 + level
+            if (this._elevator) return 3 + level -offset
         }
         return (this._priorityType * 2) + 1 + level + offset
     };
