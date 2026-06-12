@@ -1245,76 +1245,7 @@
             
             return fallback
         },
-        canPassBackup(x, y, d, d2, charLevel, fallback) {
-
-
-
-
-            const x2 = $gameMap.roundXWithDirection(x, d);
-            const y2 = $gameMap.roundYWithDirection(y, d);
-
-            const nextRegionId = $gameMap.regionId(x2, y2)
-            const regionId = $gameMap.regionId(x, y)
-
-            const fromCfg = REGION_CONFIG[regionId];
-            const toCfg = REGION_CONFIG[nextRegionId];
-
-            const fromGate = !!REGION_LEVEL_GATE[regionId];
-            const toGate = !!REGION_LEVEL_GATE[nextRegionId];
-
-
-            const fromBridge = !!fromCfg && !(fromCfg.force || fromCfg.skip);
-            const toBridge = !!toCfg && !(toCfg.force || toCfg.skip);
-
-            const fromSpecial = !!fromCfg && !!(fromCfg.force || fromCfg.skip);
-            const toSpecial = !!toCfg && !!(toCfg.force || toCfg.skip);
-
-            const targetLevel = toCfg?.level ?? 0;
-            const position = charLevel <= targetLevel ? "below" : "above"
-
-            const gateLevel = REGION_LEVEL_GATE[nextRegionId]?.level ?? 0
-
-            //movement between gates is let yo move between levels +- 1
-            if ((fromGate && toGate) || (fromSpecial && toGate)) return Math.abs(charLevel - gateLevel) <= 1
-
-            //if leaving a gate and go to a nonconfigured level difference is more than 1 block passage
-            if ((fromGate && !toCfg) && Math.abs(charLevel - targetLevel) > 1) return false
-
-            //if moving to gate from non configured level and the gate is level +-1 return default config
-            if ((toGate && !fromCfg) && Math.abs(charLevel - gateLevel) <= 1) return fallback
-
-            //if moving to gate from non configured level and the gate level is above a diference of 1 block
-            if ((toGate && !fromCfg) && Math.abs(charLevel - gateLevel) > 1) return false
-
-
-            //if nothing is configured return default
-            if (!fromCfg && !toCfg) return fallback
-
-
-
-            // If moving between gate and bridge  enforce level diff of 1 
-            if (((toBridge && fromGate) || (fromBridge && toGate))) return Math.abs(charLevel - targetLevel) <= 1
-
-
-            // If moving between gate and special  enforce level diff of 1 
-            if (((toSpecial && fromGate) || (fromSpecial && toGate))) return Math.abs(charLevel - targetLevel) <= 1
-
-            //MOVING TO A BRIDGE FROM BELOW
-            if (toBridge && !fromSpecial) return charLevel < targetLevel
-            //MOVING FROM A BRIDGE FROM BELOW
-            if (fromBridge && !toSpecial && charLevel <= targetLevel) return !!fromCfg?.[position]?.includes?.(d2)
-
-            //MOVING FROM BRIDGE TO CFG NEEDS SAME LEVEL
-            if (fromBridge && toSpecial && charLevel === targetLevel) return true
-            //MOVING FROM CFG TO BRIDGE NEEDS SAME LEVEL
-            if (fromSpecial && toBridge && charLevel === targetLevel) return true
-            //MOVING BETWEEN SPECIALS NEEDS SAME LEVEL
-            if (fromSpecial && toSpecial && charLevel === targetLevel) return true
-
-
-            //if nothing else block
-            return false
-        },
+        
 
 
     };
