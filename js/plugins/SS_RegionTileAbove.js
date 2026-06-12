@@ -467,7 +467,10 @@
 
     }
 
- 
+    //SET REGIONS
+    const REGION_LEVEL_GATE= Object.fromEntries(
+       Object.entries(REGION_CONFIG).filter(([key, value]) => value.type === 'Gate')
+    );
 
 
 
@@ -1082,7 +1085,7 @@
         this._regionLevel = value;
     };
 
-    SS_screenZ = Game_CharacterBase.prototype.screenZ
+    const SS_screenZ = Game_CharacterBase.prototype.screenZ
     Game_CharacterBase.prototype.screenZ = function () {
         const level = (this.regionLevel() ?? 0) * 0.01
         const offset = 0.001;
@@ -1141,15 +1144,15 @@
         }
     };
 
+
+
     Game_CharacterBase.prototype._handleRegionChange = function (oldX, oldY, newX, newY) {
         if (this._elevator) return;
         
         const oldRegionId = $gameMap.regionId(oldX, oldY);
         const newRegionId = $gameMap.regionId(newX, newY);
 
-        const REGION_LEVEL_GATE= Object.fromEntries(
-        Object.entries(REGION_CONFIG).filter(([key, value]) => value.type === 'Gate')
-        );
+        
 
         const enterGate = !!REGION_LEVEL_GATE[newRegionId]
         const leaveGate = !!REGION_LEVEL_GATE[oldRegionId]
@@ -1241,7 +1244,7 @@
             //to enter a gate from default needs to be in range +-1 
             if([toType, fromType].includes("Gate") )   return  Math.abs(charLevel - targetLevel) <= 1
             
-            if(!toType?.includes("Gate", "Bridge") && !fromType?.includes("Gate", "Bridge") ) return charLevel == targetLevel
+            if(!["Gate", "Bridge"].includes(toType) && !["Gate", "Bridge"].includes(fromType)) return charLevel == targetLevel
             
             return fallback
         },
