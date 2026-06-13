@@ -467,7 +467,7 @@
 
     }
 
-    //SET REGIONS
+    //SET REGIONS GATES
     const REGION_LEVEL_GATE= Object.fromEntries(
        Object.entries(REGION_CONFIG).filter(([key, value]) => value.type === 'Gate')
     );
