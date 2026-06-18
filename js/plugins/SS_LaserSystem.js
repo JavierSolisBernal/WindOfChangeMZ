@@ -642,7 +642,7 @@
 
             let started = false;
             let lastColor = null;
-            
+            console.log
             for (let i = 1; i < laser.path.length; i++) {
                 const prev = laser.path[i - 1];
                 const curr = laser.path[i];
@@ -658,6 +658,9 @@
                     offsety = halfH * curr.dy
 
                 }
+                
+                 
+
 
                 if (curr.type === "wall") {
                     offsetx = halfW * (-1) * curr.dx
@@ -667,6 +670,11 @@
                 if (prev?.isTunnel) {
                     offsetx = halfW * (1) * prev.dx
                     offsety = halfH * (1) * prev.dy
+                }
+
+                if (next?.type === "wall" && next.end) {
+                    offsetx = halfW * curr.dx 
+                    offsety = halfW * curr.dy 
                 }
 
 
@@ -706,7 +714,8 @@
                     started = true;
                     lastColor = color;
                 }
-                //Always draw the segment
+                //Always draw the segment except on last tile
+                if(!(curr.type=="wall" && curr.end))
                 ctx.lineTo(cpx.x, cpx.y);
 
                 //Stop at boundaries
