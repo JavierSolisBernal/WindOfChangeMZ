@@ -1227,23 +1227,29 @@
             const toType=REGION_CONFIG[nextRegionId]?.type
             const targetLevel = REGION_CONFIG[nextRegionId]?.level ?? 0;
 
+            //if nothing is configured return default
             if(!fromCfg && !toCfg)  return fallback
 
-            //Movement beetwen bridges check level also cannot jump lanes
+            //Movement between bridges check also cannot jump to a bridge of higher level
             if(fromType=="Bridge" && toType=="Bridge") return charLevel<targetLevel
 
             //To enter a bridge it needs to be <= level
             if(toType=="Bridge" && fromType!="Bridge") return charLevel<=targetLevel
 
+            // Leaving bridge
+   
+
             //To leave a bridge it needs to be = level so it doesn't jump lanes
             if(toType!="Bridge" && fromType=="Bridge" &&  charLevel>targetLevel ) return fallback
             //if leaving from below is locked to the directions of the region
             if(toType!="Bridge" && fromType=="Bridge" &&  charLevel<=targetLevel && !toCfg ) return fromCfg?.["below"]?.includes?.(d2)
-           
+            //a bridge to an especial is blocke is the level is diferent
+            if(toType!="Bridge" && fromType=="Bridge" &&  charLevel<targetLevel && toCfg ) return false
            
             //to enter a gate from default needs to be in range +-1 
             if([toType, fromType].includes("Gate") )   return  Math.abs(charLevel - targetLevel) <= 1
             
+            //if connecting  between gate and bridge only allows same level
             if(!["Gate", "Bridge"].includes(toType) && !["Gate", "Bridge"].includes(fromType)) return charLevel == targetLevel
             
             return fallback
