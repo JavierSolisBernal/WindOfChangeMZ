@@ -1230,7 +1230,7 @@
             //if nothing is configured return default
             if(!fromCfg && !toCfg)  return fallback
 
-            //Movement between bridges check also cannot jump to a bridge of higher level
+            // Movement between bridges is only possible when the destination bridge is above the character's current level.
             if(fromType=="Bridge" && toType=="Bridge") return charLevel<targetLevel
 
             //To enter a bridge it needs to be <= level
@@ -1239,19 +1239,25 @@
             // Leaving bridge
    
 
-            //To leave a bridge it needs to be = level so it doesn't jump lanes
+            //To leave a bridge from above is the default behavior
             if(toType!="Bridge" && fromType=="Bridge" &&  charLevel>targetLevel ) return fallback
             //if leaving from below is locked to the directions of the region
             if(toType!="Bridge" && fromType=="Bridge" &&  charLevel<=targetLevel && !toCfg ) return fromCfg?.["below"]?.includes?.(d2)
-            //a bridge to an especial is blocke is the level is diferent
+            //a bridge to an especial is blocke is the level is below and is configured
             if(toType!="Bridge" && fromType=="Bridge" &&  charLevel<targetLevel && toCfg ) return false
            
+            //Leaving a gate is possible to a normal tile if the tile is passable and the level is the same  or below
+            if(fromType=="Gate" &&  !toCfg) return fallback && Math.abs(charLevel - targetLevel) <= 1
+            //moving on overlays is default behavior
+            if(fromType=="Overlay" &&  toType=="Overlay") return fallback
             //to enter a gate from default needs to be in range +-1 
             if([toType, fromType].includes("Gate") )   return  Math.abs(charLevel - targetLevel) <= 1
             
-            //if connecting  between gate and bridge only allows same level
-            if(!["Gate", "Bridge"].includes(toType) && !["Gate", "Bridge"].includes(fromType)) return charLevel == targetLevel
+            // movement between configured non-gate, non-bridge regions only allows same level
+            if(!["Gate", "Bridge"].includes(toType) && !["Gate", "Bridge"].includes(fromType)) return charLevel == targetLevel 
             
+            
+
             return fallback
         },
         

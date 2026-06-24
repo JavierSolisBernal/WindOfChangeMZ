@@ -27,17 +27,14 @@
 
     const SS_Game_Player_setDirection = Game_Player.prototype.setDirection;
 
-    Game_Player.prototype.setDirection = function (d) {
 
-        if (this.isOnLadder() ) {
-            d = 8;
-        }
 
-        SS_Game_Player_setDirection.call(this, d);
-    };
+    const SS_Game_Player_isOnLadder = Game_Player.prototype.isOnLadder;
 
     Game_Player.prototype.isOnLadder = function () {
-        return $gameMap.isLadder(this.x, this.y)|| ladderTag == $gameMap.terrainTag(this.x, this.y);
+        return SS_Game_Player_isOnLadder.call(this) ||
+            (ladderTag >= 0 &&
+                ladderTag === $gameMap.terrainTag(this.x, this.y));
     };
 
 })();
