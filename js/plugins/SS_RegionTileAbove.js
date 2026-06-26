@@ -1233,6 +1233,9 @@
             // Movement between bridges is only possible when the destination bridge is above the character's current level.
             if(fromType=="Bridge" && toType=="Bridge") return charLevel<targetLevel
 
+
+            //to enter into a bridge from non config it must have the directions
+            if(toType=="Bridge" && fromType!="Bridge" &&  charLevel<=targetLevel && !fromCfg ) return toCfg?.["below"]?.includes?.(d2)
             //To enter a bridge it needs to be <= level
             if(toType=="Bridge" && fromType!="Bridge") return charLevel<=targetLevel
 
@@ -1243,6 +1246,8 @@
             if(toType!="Bridge" && fromType=="Bridge" &&  charLevel>targetLevel ) return fallback
             //if leaving from below is locked to the directions of the region
             if(toType!="Bridge" && fromType=="Bridge" &&  charLevel<=targetLevel && !toCfg ) return fromCfg?.["below"]?.includes?.(d2)
+            
+
             //a bridge to an especial is blocke is the level is below and is configured
             if(toType!="Bridge" && fromType=="Bridge" &&  charLevel<targetLevel && toCfg ) return false
            
