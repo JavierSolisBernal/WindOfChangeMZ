@@ -16,6 +16,7 @@
 
     const PLUGINTILEABOVE = "SS_RegionTileAbove"
     let TUNNELS = [];
+    let ENDS = [];
     const COLORS = { orange: "#FFA500", green: "#00AA00" }
 
 
@@ -63,16 +64,20 @@
             REGION_CONFIG[id] = {
                 alpha: obj.alpha !== undefined ? Number(obj.alpha) : 1,
                 level: obj.level !== undefined ? Number(obj.level) : 0,
-                force: obj.force === "true" || obj.force === true,
-                skip: obj.skip === "true" || obj.skip === true,
+                skip:obj.type=="None",
+                force:obj.type=="Overlay",
+                //force: obj.force === "true" || obj.force === true,
+                //skip: obj.skip === "true" || obj.skip === true,
                 backgroundTile: obj.backgroundTile !== undefined ? Number(obj.backgroundTile) : undefined,
                 below: parseDirectionStruct(obj.below),
                 above: parseDirectionStruct(obj.above)
             };
         }
-        const filtertunnel = Object.entries(REGION_CONFIG).filter(([id, config]) => config.below?.length > 0);
+        const filtertunnel = Object.entries(REGION_CONFIG).filter(([id, config]) => config.below?.length > 0||config.force );
+        const filterend = Object.entries(REGION_CONFIG).filter(([id, config]) => config.skip   );
         TUNNELS = TUNNELS.concat(filtertunnel.map(([id]) => Number(id)))
-
+        ENDS = ENDS.concat(filterend.map(([id]) => Number(id)))
+         
     }
     else {
         const tun = JSON.parse(params.Tunnels).map(e => parseInt(e))
@@ -249,6 +254,15 @@
                     path.push({ x, y, dx, dy, regionId, type: "path", color: color, isTunnel: true });
                 else
                     path.push({ x, y, dx, dy, regionId, type: "path", color: color });
+
+                const isEnd = $gameMap.isEnd(x, y, event)
+                // BLOCK
+                  if (isEnd) {
+                        path.push({ x, y, dx, dy, end: true, type: "wall", color: color });
+                        this.path = path;
+                        return;
+                }
+
 
                 const eventsAtTile = $gameMap.eventsXyNt(x, y);
 
@@ -440,6 +454,12 @@
         const SAFE_TUNNELS = Array.isArray(TUNNELS) ? TUNNELS : [];
         return SAFE_TUNNELS.includes(this.regionId(x, y));
 
+    }
+
+
+    Game_Map.prototype.isEnd = function (x, y, event) {
+        const SAFE_ENDS = Array.isArray(ENDS) ? ENDS : [];
+        return SAFE_ENDS.includes(this.regionId(x, y));
     }
 
 
@@ -673,10 +693,11 @@
                 }
 
                 if (next?.type === "wall" && next.end) {
-                    offsetx = halfW * curr.dx 
-                    offsety = halfW * curr.dy 
+                    offsetx = halfW * curr.dx * (-1)
+                    offsety = halfW * curr.dy * (-1)
                 }
 
+                
 
                 // apply offset
                 const cpx = {
