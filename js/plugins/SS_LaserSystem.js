@@ -279,6 +279,8 @@
 
                 for (const e of eventsAtTile) {
                     if (e._md == null) continue;
+                    const level = e._regionLevel ?? 0;
+                    if (level !== myLevel ||  !e.isNormalPriority()) continue
 
                     const resultDir = reflectDirection(dir, e._md);
 
@@ -810,7 +812,7 @@
                 // ---------------------------------
                 // EVENT WAS ERASED
                 // ---------------------------------
-                if (ev.isErased()) {
+                 if (ev?._erased) {
                     if (laser._sprite) {
                         laser._sprite.visible = false;
                     }
