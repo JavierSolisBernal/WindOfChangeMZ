@@ -280,7 +280,7 @@
                 for (const e of eventsAtTile) {
                     if (e._md == null) continue;
                     const level = e._regionLevel ?? 0;
-                    if (level !== myLevel ||  !e.isNormalPriority()) continue
+                    if (level !== myLevel || !e.isNormalPriority()) continue
 
                     const resultDir = reflectDirection(dir, e._md);
 
@@ -812,7 +812,7 @@
                 // ---------------------------------
                 // EVENT WAS ERASED
                 // ---------------------------------
-                 if (ev?._erased) {
+                if (ev?._erased) {
                     if (laser._sprite) {
                         laser._sprite.visible = false;
                     }
@@ -896,6 +896,77 @@
         // ---------------------------------
         this._tilemap.sortChildren();
     };
+
+    // =====================================================
+    // LASER MOVEMENT HANDLING
+    // =====================================================
+
+    Game_Event.prototype.turnOffLasersForMovement = function () {
+        if (!this._lasers) return;
+
+        for (const key in this._lasers) {
+            const laser = this._lasers[key];
+
+            if (!laser) continue;
+
+            // Remember the state before movement
+            laser._wasOnBeforeMove = laser.turnedOn;
+
+            // Turn off only if it was actually on
+            if (laser.turnedOn) {
+                laser.turnOnOff(false);
+            }
+        }
+    };
+
+
+    Game_Event.prototype.turnOnLasersAfterMovement = function () {
+        if (!this._lasers) return;
+
+        for (const key in this._lasers) {
+            const laser = this._lasers[key];
+
+            if (!laser) continue;
+
+            // Only restore lasers that were active before movement
+            if (laser._wasOnBeforeMove) {
+                laser.markDirty();
+                laser.turnOnOff(true);
+            }
+
+            laser._wasOnBeforeMove = false;
+        }
+    };
+
+
+    // =====================================================
+    // EVENT MOVEMENT → LASER OFF / ON
+    // =====================================================
+
+    const _SS_Game_Event_update = Game_Event.prototype.update;
+
+    Game_Event.prototype.update = function () {
+        const wasMoving = this.isMoving();
+
+        _SS_Game_Event_update.call(this);
+
+        const nowMoving = this.isMoving();
+
+        // -----------------------------------------
+        // MOVEMENT STARTED
+        // -----------------------------------------
+        if (!wasMoving && nowMoving) {
+            this.turnOffLasersForMovement();
+        }
+
+        // -----------------------------------------
+        // MOVEMENT FINISHED
+        // -----------------------------------------
+        if (wasMoving && !nowMoving) {
+            this.turnOnLasersAfterMovement();
+        }
+    };
+
 
 
 })();
